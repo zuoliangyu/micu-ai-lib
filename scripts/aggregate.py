@@ -32,18 +32,29 @@ GITEE_TOKEN = os.environ.get("GITEE_TOKEN")
 # ---------------- HTTP ---------------- #
 
 
-def http_get(url: str, headers: dict | None = None) -> str | None:
+def http_get(url: str, headers: dict | None = None, retries: int = 1) -> str | None:
+    """GET with one automatic retry on transient errors (timeout, 5xx)."""
     req = urllib.request.Request(url, headers=headers or {})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            return r.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        if e.code != 404:
+    last_err: str | None = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return r.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None  # 404 isn't transient — don't retry, don't warn
+            if 500 <= e.code < 600 and attempt < retries:
+                last_err = f"HTTP {e.code}"
+                continue
             print(f"[warn] {url}: HTTP {e.code}", file=sys.stderr)
-        return None
-    except urllib.error.URLError as e:
-        print(f"[warn] {url}: {e}", file=sys.stderr)
-        return None
+            return None
+        except urllib.error.URLError as e:
+            last_err = str(e)
+            if attempt < retries:
+                continue
+            print(f"[warn] {url}: {last_err}", file=sys.stderr)
+            return None
+    return None
 
 
 # ---------------- Host adapters ---------------- #
@@ -171,16 +182,47 @@ def relative_time(iso: str | None) -> str:
     return f"{int(seconds // (86400 * 365))} 年前"
 
 
+def _to_list(v) -> list[str]:
+    """Forgive `authors: cjh` (string) and `tags: 'a, b'` (comma string)."""
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if str(x).strip()]
+    if isinstance(v, str):
+        parts = [p.strip() for p in v.split(",")]
+        return [p for p in parts if p]
+    return [str(v)]
+
+
 def normalize(meta: dict) -> dict:
     """Coerce YAML-native types and drop empty fields before schema validation.
 
-    `key:` with no value parses to None in YAML; treat that as missing so
-    members can leave optional fields blank without tripping the schema.
+    Tolerated mistakes:
+      - `key:` with no value (becomes None) is treated as missing
+      - `authors: cjh` (string) is coerced to `[cjh]`
+      - `tags: "a, b"` is split to `[a, b]`
+      - `updated:` as date/datetime is ISO-stringified
     """
     meta = {k: v for k, v in meta.items() if v is not None and v != ""}
+    for key in ("authors", "tags"):
+        if key in meta:
+            meta[key] = _to_list(meta[key])
     if isinstance(meta.get("updated"), (dt.date, dt.datetime)):
         meta["updated"] = meta["updated"].isoformat()
     return meta
+
+
+def safe_yaml_load(text: str, source: str) -> dict | None:
+    """Parse YAML; on error report and return None so the build doesn't crash."""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        print(f"[bad-yaml] {source}: parse error — {e}", file=sys.stderr)
+        return None
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        print(f"[bad-yaml] {source}: top level must be a mapping, got {type(data).__name__}", file=sys.stderr)
+        return None
+    return data
 
 
 def load_schema() -> Draft202012Validator:
@@ -206,7 +248,10 @@ def load_remote_project(entry: str, validator: Draft202012Validator) -> dict | N
     if not raw:
         print(f"[skip] {entry}: no project.yaml", file=sys.stderr)
         return None
-    meta = normalize(yaml.safe_load(raw) or {})
+    parsed = safe_yaml_load(raw, entry)
+    if parsed is None:
+        return None
+    meta = normalize(parsed)
     if not validate(meta, entry, validator):
         return None
     meta["host"] = host
@@ -227,7 +272,10 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
     if not yaml_file.is_file():
         print(f"[skip] {path}: no project.yaml", file=sys.stderr)
         return None
-    meta = normalize(yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {})
+    parsed = safe_yaml_load(yaml_file.read_text(encoding="utf-8"), str(root))
+    if parsed is None:
+        return None
+    meta = normalize(parsed)
     if not validate(meta, str(root), validator):
         return None
     repo_id = f"local/{root.name}"

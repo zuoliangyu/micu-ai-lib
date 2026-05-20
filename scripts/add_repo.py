@@ -48,6 +48,13 @@ def repo_part(entry: str) -> str:
     return entry.split(":", 1)[1] if ":" in entry else entry
 
 
+class IndentedDumper(yaml.SafeDumper):
+    """Force sequences nested in mappings to be indented under their key."""
+
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: add_repo.py owner/repo|<github-or-gitee-url>", file=sys.stderr)
@@ -59,16 +66,16 @@ def main() -> int:
 
     data = yaml.safe_load(REGISTRY.read_text(encoding="utf-8")) or {}
     existing = data.get("repos") or []
-    already_there = new_entry in existing
-    repos = sorted(set(existing + [new_entry]))
-    data["repos"] = repos
+    if new_entry in existing:
+        print(f"[ok] {new_entry}: already present ({len(existing)} entries total)")
+        return 0
 
+    data["repos"] = sorted(set(existing + [new_entry]))
     REGISTRY.write_text(
-        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        yaml.dump(data, Dumper=IndentedDumper, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
-    msg = "already present" if already_there else "added"
-    print(f"[ok] {new_entry}: {msg} ({len(repos)} entries total)")
+    print(f"[ok] {new_entry}: added ({len(data['repos'])} entries total)")
     return 0
 
 
