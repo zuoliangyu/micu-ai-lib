@@ -2,6 +2,8 @@
 
 MICU 工作室 AI 项目聚合站点。成员仓库提交 `project.yaml`，主仓库按计划拉取并渲染为在线 docsify 文档。
 
+在线访问：<https://micu-ai-lib.netlify.app>
+
 ## 目录
 
 ```
@@ -45,9 +47,12 @@ python -m http.server -d docs 3000
 
 ## 部署
 
-仓库 Settings → **Pages** → Source 选 **GitHub Actions**（不是 branch）。
-Settings → Actions → General → Workflow permissions 选 **Read and write**。
-首次跑完 action 后，Pages 上线地址会出现在 Settings → Pages 顶部。
+托管在 Netlify，由 GitHub Action 推送构建产物：
+
+- Action 每 6 小时跑一次 `scripts/aggregate.py`，把生成的 `docs/` 通过 `nwtgck/actions-netlify` 部署到 Netlify。
+- 仓库 Secrets 需要 `NETLIFY_AUTH_TOKEN`（Netlify 用户的 Personal access token）和 `NETLIFY_SITE_ID`（站点 UUID）。
+- Settings → Actions → General → Workflow permissions 选 **Read and write**（`add_repo` 触发时需要 commit 回 registry）。
+- 发布目录、headers 等由根目录 `netlify.toml` 声明。
 
 ## 成员侧的 project.yaml
 
