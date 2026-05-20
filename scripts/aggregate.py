@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Aggregate member repo metadata into docs/ for docsify rendering."""
+"""Aggregate member repo metadata into docs/ for docsify rendering.
+
+Registry entries can be plain `owner/repo` (GitHub, default) or
+`gitee:owner/repo` (Gitee). Local previews go through --local PATH.
+"""
 from __future__ import annotations
 
 import argparse
@@ -21,10 +25,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 PROJECTS = DOCS / "projects"
 SCHEMA_FILE = ROOT / "scripts" / "schemas" / "project.schema.json"
-RAW = "https://raw.githubusercontent.com/{repo}/HEAD/{path}"
-API = "https://api.github.com/repos/{repo}/commits?per_page=1"
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITEE_TOKEN = os.environ.get("GITEE_TOKEN")
+
+# ---------------- HTTP ---------------- #
 
 
 def http_get(url: str, headers: dict | None = None) -> str | None:
@@ -41,16 +46,57 @@ def http_get(url: str, headers: dict | None = None) -> str | None:
         return None
 
 
-def fetch_raw(repo: str, path: str) -> str | None:
-    return http_get(RAW.format(repo=repo, path=path))
+# ---------------- Host adapters ---------------- #
+
+_gitee_branch_cache: dict[str, str] = {}
 
 
-def fetch_activity(repo: str) -> str | None:
+def parse_entry(entry: str) -> tuple[str, str]:
+    """Return (host, owner/repo). Bare `owner/repo` defaults to github."""
+    if ":" in entry and not entry.startswith(("http://", "https://")):
+        host, repo = entry.split(":", 1)
+        if host in ("github", "gitee"):
+            return host, repo
+    return "github", entry
+
+
+def gitee_default_branch(repo: str) -> str:
+    if repo in _gitee_branch_cache:
+        return _gitee_branch_cache[repo]
+    raw = http_get(f"https://gitee.com/api/v5/repos/{repo}")
+    branch = "master"
+    if raw:
+        try:
+            branch = json.loads(raw).get("default_branch") or "master"
+        except json.JSONDecodeError:
+            pass
+    _gitee_branch_cache[repo] = branch
+    return branch
+
+
+def fetch_raw(host: str, repo: str, path: str) -> str | None:
+    if host == "github":
+        return http_get(f"https://raw.githubusercontent.com/{repo}/HEAD/{path}")
+    if host == "gitee":
+        branch = gitee_default_branch(repo)
+        return http_get(f"https://gitee.com/{repo}/raw/{branch}/{path}")
+    return None
+
+
+def fetch_activity(host: str, repo: str) -> str | None:
     """Return ISO date of latest commit on default branch."""
-    headers = {"Accept": "application/vnd.github+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-    raw = http_get(API.format(repo=repo), headers=headers)
+    if host == "github":
+        headers = {"Accept": "application/vnd.github+json"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+        raw = http_get(f"https://api.github.com/repos/{repo}/commits?per_page=1", headers=headers)
+    elif host == "gitee":
+        url = f"https://gitee.com/api/v5/repos/{repo}/commits?per_page=1"
+        if GITEE_TOKEN:
+            url += f"&access_token={GITEE_TOKEN}"
+        raw = http_get(url)
+    else:
+        return None
     if not raw:
         return None
     try:
@@ -58,6 +104,36 @@ def fetch_activity(repo: str) -> str | None:
         return data[0]["commit"]["committer"]["date"] if data else None
     except (json.JSONDecodeError, KeyError, IndexError):
         return None
+
+
+def web_url(host: str, repo: str) -> str:
+    if host == "github":
+        return f"https://github.com/{repo}"
+    if host == "gitee":
+        return f"https://gitee.com/{repo}"
+    return ""
+
+
+def cover_url(host: str, repo: str, cover: str) -> str:
+    if host == "github":
+        return f"https://raw.githubusercontent.com/{repo}/HEAD/{cover}"
+    if host == "gitee":
+        branch = gitee_default_branch(repo)
+        return f"https://gitee.com/{repo}/raw/{branch}/{cover}"
+    return cover
+
+
+def make_slug(host: str, repo: str) -> str:
+    """github stays bare for backward compat; other hosts get prefix."""
+    repo_slug = repo.replace("/", "__")
+    return repo_slug if host == "github" else f"{host}__{repo_slug}"
+
+
+def host_badge(host: str) -> str:
+    return {"github": "GitHub", "gitee": "Gitee"}.get(host, host)
+
+
+# ---------------- Local git fallback ---------------- #
 
 
 def local_activity(path: pathlib.Path) -> str | None:
@@ -71,14 +147,17 @@ def local_activity(path: pathlib.Path) -> str | None:
         return None
 
 
+# ---------------- Misc ---------------- #
+
+
 def relative_time(iso: str | None) -> str:
     if not iso:
         return ""
     try:
-        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        dt_ = datetime.fromisoformat(iso.replace("Z", "+00:00"))
     except ValueError:
         return ""
-    seconds = (datetime.now(timezone.utc) - dt).total_seconds()
+    seconds = (datetime.now(timezone.utc) - dt_).total_seconds()
     if seconds < 0:
         return ""
     if seconds < 3600:
@@ -93,15 +172,19 @@ def relative_time(iso: str | None) -> str:
 
 
 def normalize(meta: dict) -> dict:
-    """Coerce YAML-native types into JSON-friendly forms before schema validation."""
+    """Coerce YAML-native types and drop empty fields before schema validation.
+
+    `key:` with no value parses to None in YAML; treat that as missing so
+    members can leave optional fields blank without tripping the schema.
+    """
+    meta = {k: v for k, v in meta.items() if v is not None and v != ""}
     if isinstance(meta.get("updated"), (dt.date, dt.datetime)):
         meta["updated"] = meta["updated"].isoformat()
     return meta
 
 
 def load_schema() -> Draft202012Validator:
-    schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-    return Draft202012Validator(schema)
+    return Draft202012Validator(json.loads(SCHEMA_FILE.read_text(encoding="utf-8")))
 
 
 def validate(meta: dict, source: str, validator: Draft202012Validator) -> bool:
@@ -114,21 +197,27 @@ def validate(meta: dict, source: str, validator: Draft202012Validator) -> bool:
     return False
 
 
-def load_remote_project(repo: str, validator: Draft202012Validator) -> dict | None:
-    raw = fetch_raw(repo, "project.yaml")
+# ---------------- Loaders ---------------- #
+
+
+def load_remote_project(entry: str, validator: Draft202012Validator) -> dict | None:
+    host, repo = parse_entry(entry)
+    raw = fetch_raw(host, repo, "project.yaml")
     if not raw:
-        print(f"[skip] {repo}: no project.yaml", file=sys.stderr)
+        print(f"[skip] {entry}: no project.yaml", file=sys.stderr)
         return None
     meta = normalize(yaml.safe_load(raw) or {})
-    if not validate(meta, repo, validator):
+    if not validate(meta, entry, validator):
         return None
+    meta["host"] = host
     meta["repo"] = repo
-    meta["slug"] = repo.replace("/", "__")
-    meta["readme_body"] = fetch_raw(repo, meta.get("readme", "README.md")) or ""
-    meta["last_commit"] = fetch_activity(repo)
+    meta["slug"] = make_slug(host, repo)
+    meta["web_url"] = web_url(host, repo)
+    meta["readme_body"] = fetch_raw(host, repo, meta.get("readme", "README.md")) or ""
+    meta["last_commit"] = fetch_activity(host, repo)
     cover = meta.get("cover")
     if cover and not cover.startswith(("http://", "https://")):
-        meta["cover"] = f"https://raw.githubusercontent.com/{repo}/HEAD/{cover}"
+        meta["cover"] = cover_url(host, repo, cover)
     return meta
 
 
@@ -142,8 +231,10 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
     if not validate(meta, str(root), validator):
         return None
     repo_id = f"local/{root.name}"
+    meta["host"] = "local"
     meta["repo"] = repo_id
     meta["slug"] = repo_id.replace("/", "__").replace(" ", "_")
+    meta["web_url"] = ""
     readme_path = root / meta.get("readme", "README.md")
     meta["readme_body"] = (
         readme_path.read_text(encoding="utf-8") if readme_path.is_file() else ""
@@ -152,11 +243,18 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
     return meta
 
 
+# ---------------- Rendering ---------------- #
+
+
 def write_project_page(meta: dict) -> None:
+    repo_link = (
+        f"[{meta['repo']}]({meta['web_url']})" if meta.get("web_url") else meta["repo"]
+    )
     lines = [
         f"# {meta.get('name', meta['repo'])}\n",
         f"> {meta.get('summary', '')}\n",
-        f"- **Repo:** [{meta['repo']}](https://github.com/{meta['repo']})",
+        f"- **Repo:** {repo_link}",
+        f"- **Host:** {host_badge(meta.get('host', 'github'))}",
         f"- **Authors:** {', '.join(meta.get('authors', []))}",
         f"- **Category:** {meta.get('category', '')}",
         f"- **Tags:** {', '.join(meta.get('tags', []))}",
@@ -174,7 +272,6 @@ def write_project_page(meta: dict) -> None:
 
 
 def sort_key(p: dict) -> str:
-    """Sort projects by latest activity desc — newest first."""
     return p.get("last_commit") or p.get("updated") or ""
 
 
@@ -184,11 +281,16 @@ def render_cards(projects: list[dict]) -> str:
         cover = f'<img src="{p["cover"]}" alt="">' if p.get("cover") else ""
         activity = relative_time(p.get("last_commit"))
         activity_html = f' · <span class="activity">{activity}</span>' if activity else ""
+        host_html = (
+            f' · <span class="host">{host_badge(p.get("host", ""))}</span>'
+            if p.get("host") and p["host"] != "github"
+            else ""
+        )
         out.append(
             f'<a class="card" href="#/projects/{p["slug"]}">{cover}'
             f'<h3>{p.get("name", p["repo"])}</h3>'
             f'<p>{p.get("summary", "")}</p>'
-            f'<small>{", ".join(p.get("authors", []))} · {p.get("category", "")}{activity_html}</small>'
+            f'<small>{", ".join(p.get("authors", []))} · {p.get("category", "")}{host_html}{activity_html}</small>'
             f"</a>"
         )
     out.append("</div>")
@@ -216,15 +318,16 @@ def render_list(projects: list[dict]) -> str:
 def render_table(projects: list[dict]) -> str:
     out = [
         "# 表格视图\n",
-        "| 名称 | 分类 | 作者 | 状态 | 活跃度 | 简介 |",
-        "|---|---|---|---|---|---|",
+        "| 名称 | 分类 | 来源 | 作者 | 状态 | 活跃度 | 简介 |",
+        "|---|---|---|---|---|---|---|",
     ]
     for p in projects:
         activity = relative_time(p.get("last_commit")) or p.get("updated", "")
         out.append(
             f"| [{p.get('name', p['repo'])}](#/projects/{p['slug']}) "
-            f"| {p.get('category', '')} | {', '.join(p.get('authors', []))} "
-            f"| {p.get('status', '')} | {activity} | {p.get('summary', '')} |"
+            f"| {p.get('category', '')} | {host_badge(p.get('host', ''))} "
+            f"| {', '.join(p.get('authors', []))} | {p.get('status', '')} "
+            f"| {activity} | {p.get('summary', '')} |"
         )
     return "\n".join(out)
 
@@ -248,6 +351,9 @@ def render_sidebar(projects: list[dict]) -> str:
     return "\n".join(out)
 
 
+# ---------------- Main ---------------- #
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Aggregate MICU AI Lib")
     parser.add_argument(
@@ -264,12 +370,12 @@ def main() -> int:
     PROJECTS.mkdir(parents=True, exist_ok=True)
 
     projects: list[dict] = []
-    for repo in registry.get("repos", []) or []:
-        meta = load_remote_project(repo, validator)
+    for entry in registry.get("repos", []) or []:
+        meta = load_remote_project(entry, validator)
         if meta:
             write_project_page(meta)
             projects.append(meta)
-            print(f"[ok] {repo}")
+            print(f"[ok] {entry}")
 
     for path in args.local:
         meta = load_local_project(path, validator)
