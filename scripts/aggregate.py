@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Aggregate member repo metadata into docs/ for docsify rendering.
+"""Aggregate member repo metadata into Astro content (src/content/projects).
+
+Each registry entry becomes one markdown file with YAML frontmatter (project
+metadata) + README body. Astro reads the collection and renders pages.
 
 Registry entries can be plain `owner/repo` (GitHub, default) or
 `gitee:owner/repo` (Gitee). Local previews go through --local PATH.
@@ -15,15 +18,12 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from collections import defaultdict
-from datetime import datetime, timezone
 
 import yaml
 from jsonschema import Draft202012Validator
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOCS = ROOT / "docs"
-PROJECTS = DOCS / "projects"
+CONTENT = ROOT / "src" / "content" / "projects"
 SCHEMA_FILE = ROOT / "scripts" / "schemas" / "project.schema.json"
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -140,10 +140,6 @@ def make_slug(host: str, repo: str) -> str:
     return repo_slug if host == "github" else f"{host}__{repo_slug}"
 
 
-def host_badge(host: str) -> str:
-    return {"github": "GitHub", "gitee": "Gitee"}.get(host, host)
-
-
 # ---------------- Local git fallback ---------------- #
 
 
@@ -159,27 +155,6 @@ def local_activity(path: pathlib.Path) -> str | None:
 
 
 # ---------------- Misc ---------------- #
-
-
-def relative_time(iso: str | None) -> str:
-    if not iso:
-        return ""
-    try:
-        dt_ = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return ""
-    seconds = (datetime.now(timezone.utc) - dt_).total_seconds()
-    if seconds < 0:
-        return ""
-    if seconds < 3600:
-        return f"{max(1, int(seconds // 60))} 分钟前"
-    if seconds < 86400:
-        return f"{int(seconds // 3600)} 小时前"
-    if seconds < 86400 * 30:
-        return f"{int(seconds // 86400)} 天前"
-    if seconds < 86400 * 365:
-        return f"{int(seconds // (86400 * 30))} 个月前"
-    return f"{int(seconds // (86400 * 365))} 年前"
 
 
 def _to_list(v) -> list[str]:
@@ -294,202 +269,74 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
 # ---------------- Rendering ---------------- #
 
 
-STATUS_LABEL = {
-    "in-progress": "进行中",
-    "done": "已完成",
-    "archived": "已归档",
-}
+FRONTMATTER_KEYS = (
+    "name", "summary", "authors", "category", "tags", "status",
+    "updated", "cover", "demo", "links",
+    "host", "repo", "slug", "web_url", "last_commit",
+)
 
 
-def activity_class(iso: str | None) -> str:
-    """fresh < 7 天, warm < 30 天, 否则 cold."""
-    if not iso:
-        return "activity-cold"
-    try:
-        d = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return "activity-cold"
-    days = (datetime.now(timezone.utc) - d).days
-    if days < 7:
-        return "activity-fresh"
-    if days < 30:
-        return "activity-warm"
-    return "activity-cold"
-
-
-def _field(label: str, value_html: str) -> str:
-    return (
-        f'<div class="field"><span class="field-label">{label}</span>'
-        f'<span class="field-value">{value_html}</span></div>'
+def _yaml_scalar(value) -> str:
+    """Inline scalar safe for YAML frontmatter — quote when needed."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    s = str(value)
+    # quote strings that could be misread by YAML (incl. date-like ISO prefixes)
+    looks_like_date = len(s) >= 10 and s[:4].isdigit() and s[4] == "-" and s[7] == "-"
+    needs_quote = (
+        not s
+        or s != s.strip()
+        or any(c in s for c in (":", "#", "&", "*", "!", "|", ">", "%", "@", "`", "\"", "'"))
+        or s.lower() in ("true", "false", "null", "yes", "no", "on", "off")
+        or s[0] in ("-", "?", "[", "{", ",")
+        or looks_like_date
     )
+    if needs_quote:
+        return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return s
+
+
+def _yaml_block(meta: dict) -> str:
+    out: list[str] = []
+    for key in FRONTMATTER_KEYS:
+        if key not in meta:
+            continue
+        value = meta[key]
+        if value is None or value == "" or value == [] or value == {}:
+            continue
+        if isinstance(value, list):
+            out.append(f"{key}:")
+            for item in value:
+                out.append(f"  - {_yaml_scalar(item)}")
+        elif isinstance(value, dict):
+            out.append(f"{key}:")
+            for k, v in value.items():
+                out.append(f"  {k}: {_yaml_scalar(v)}")
+        else:
+            out.append(f"{key}: {_yaml_scalar(value)}")
+    return "\n".join(out)
 
 
 def write_project_page(meta: dict) -> None:
-    host = meta.get("host", "github")
-    status = meta.get("status", "")
-    status_html = (
-        f'<span class="badge badge-status-{status}">{STATUS_LABEL.get(status, status)}</span>'
-        if status else "—"
-    )
-    repo_html = (
-        f'<a href="{meta["web_url"]}" target="_blank" rel="noopener">{meta["repo"]}</a>'
-        if meta.get("web_url") else meta["repo"]
-    )
-    tags_html = " ".join(f'<span class="tag">{t}</span>' for t in meta.get("tags", [])) or "—"
-    authors_html = ", ".join(meta.get("authors", [])) or "—"
-    activity = relative_time(meta.get("last_commit")) or "—"
+    body = meta.get("readme_body", "") or ""
+    # strip a leading H1 if the README starts with the project name — the
+    # detail page already shows it as a styled heading.
+    stripped = body.lstrip()
+    if stripped.startswith("# "):
+        first_nl = stripped.find("\n")
+        if first_nl != -1:
+            body = stripped[first_nl + 1 :].lstrip("\n")
 
-    fields = [
-        _field("Repo", repo_html),
-        _field("Host", host_badge(host)),
-        _field("Authors", authors_html),
-        _field("Category", f'<span class="badge badge-category">{meta.get("category", "")}</span>'),
-        _field("Status", status_html),
-        _field("Last commit", activity),
-    ]
-    if meta.get("updated"):
-        fields.append(_field("Updated", str(meta["updated"])))
-    if meta.get("demo"):
-        fields.append(_field("Demo", f'<a href="{meta["demo"]}" target="_blank" rel="noopener">{meta["demo"]}</a>'))
-    for k, v in (meta.get("links") or {}).items():
-        fields.append(_field(k.capitalize(), f'<a href="{v}" target="_blank" rel="noopener">{v}</a>'))
-    if meta.get("tags"):
-        fields.append(_field("Tags", tags_html))
-
-    meta_block = '<div class="project-meta">' + "".join(fields) + "</div>"
-
-    lines = [
-        f"# {meta.get('name', meta['repo'])}",
-        "",
-        f"> {meta.get('summary', '')}",
-        "",
-        meta_block,
-        "",
-        "---",
-        "",
-        meta["readme_body"],
-    ]
-    (PROJECTS / f"{meta['slug']}.md").write_text("\n".join(lines), encoding="utf-8")
+    text = "---\n" + _yaml_block(meta) + "\n---\n\n" + body
+    (CONTENT / f"{meta['slug']}.md").write_text(text, encoding="utf-8")
 
 
 def sort_key(p: dict) -> str:
     return p.get("last_commit") or p.get("updated") or ""
-
-
-def render_hero(projects: list[dict]) -> str:
-    categories = {p.get("category", "") for p in projects if p.get("category")}
-    latest = max((p.get("last_commit") or "" for p in projects), default="")
-    latest_human = relative_time(latest) if latest else "—"
-    return (
-        '<section class="hero">'
-        '<span class="eyebrow">MICU · AI · LIBRARY</span>'
-        '<h1>工作室<em>项目矩阵</em></h1>'
-        '<p>聚合工作室所有 AI 相关项目，每张卡是一个仓库的快照——简介 / 作者 / 最近更新一目了然。点开看详情。</p>'
-        '<div class="hero-stats">'
-        f'<div class="hero-stat"><span class="num">{len(projects)}</span><span class="label">项目</span></div>'
-        f'<div class="hero-stat"><span class="num">{len(categories)}</span><span class="label">分类</span></div>'
-        f'<div class="hero-stat"><span class="num">{latest_human}</span><span class="label">最近更新</span></div>'
-        '</div>'
-        '</section>'
-    )
-
-
-def render_cards(projects: list[dict]) -> str:
-    out = [render_hero(projects), '<section class="card-grid">']
-    for p in projects:
-        host = p.get("host", "github")
-        status = p.get("status", "")
-        cover_html = (
-            f'<div class="card-cover" style="background-image:url({p["cover"]})"></div>'
-            if p.get("cover")
-            else f'<div class="card-cover no-cover">{p.get("category", "·")}</div>'
-        )
-        eyebrow_parts = []
-        if host != "github":
-            eyebrow_parts.append(f'<span class="badge badge-host-{host}">{host_badge(host)}</span>')
-        if p.get("category"):
-            eyebrow_parts.append(f'<span class="badge badge-category">{p["category"]}</span>')
-        if status:
-            eyebrow_parts.append(
-                f'<span class="badge badge-status-{status}">{STATUS_LABEL.get(status, status)}</span>'
-            )
-        eyebrow_html = (
-            f'<div class="card-eyebrow">{"".join(eyebrow_parts)}</div>' if eyebrow_parts else ""
-        )
-        tags_html = ""
-        if p.get("tags"):
-            chips = "".join(f'<span class="tag">{t}</span>' for t in p["tags"][:4])
-            tags_html = f'<div class="card-tags">{chips}</div>'
-        activity = relative_time(p.get("last_commit"))
-        activity_html = (
-            f'<span class="card-activity {activity_class(p.get("last_commit"))}">'
-            f'<span class="activity-dot"></span>{activity}</span>'
-            if activity else ""
-        )
-        out.append(
-            f'<a class="card" href="#/projects/{p["slug"]}">'
-            f'{cover_html}'
-            f'<div class="card-body">'
-            f'{eyebrow_html}'
-            f'<h3 class="card-title">{p.get("name", p["repo"])}</h3>'
-            f'<p class="card-summary">{p.get("summary", "")}</p>'
-            f'{tags_html}'
-            f'<div class="card-foot">'
-            f'<span class="card-authors">{", ".join(p.get("authors", []))}</span>'
-            f'{activity_html}'
-            f'</div>'
-            f'</div>'
-            f'</a>'
-        )
-    out.append("</section>")
-    return "\n".join(out)
-
-
-def render_list(projects: list[dict]) -> str:
-    out: list[str] = ["# 列表视图\n"]
-    by_cat: dict[str, list[dict]] = defaultdict(list)
-    for p in projects:
-        by_cat[p.get("category", "Other")].append(p)
-    for cat, items in sorted(by_cat.items()):
-        out.append(f"## {cat}\n")
-        for p in items:
-            activity = relative_time(p.get("last_commit"))
-            suffix = f" — _{activity}_" if activity else ""
-            out.append(
-                f"- [{p.get('name', p['repo'])}](#/projects/{p['slug']}) — "
-                f"{p.get('summary', '')} _({', '.join(p.get('authors', []))})_{suffix}"
-            )
-        out.append("")
-    return "\n".join(out)
-
-
-def render_table(projects: list[dict]) -> str:
-    out = [
-        "# 表格视图\n",
-        "| 名称 | 分类 | 来源 | 作者 | 状态 | 活跃度 | 简介 |",
-        "|---|---|---|---|---|---|---|",
-    ]
-    for p in projects:
-        activity = relative_time(p.get("last_commit")) or p.get("updated", "")
-        out.append(
-            f"| [{p.get('name', p['repo'])}](#/projects/{p['slug']}) "
-            f"| {p.get('category', '')} | {host_badge(p.get('host', ''))} "
-            f"| {', '.join(p.get('authors', []))} | {p.get('status', '')} "
-            f"| {activity} | {p.get('summary', '')} |"
-        )
-    return "\n".join(out)
-
-
-def render_sidebar(projects: list[dict]) -> str:
-    out: list[str] = []
-    by_cat: dict[str, list[dict]] = defaultdict(list)
-    for p in projects:
-        by_cat[p.get("category", "Other")].append(p)
-    for cat, items in sorted(by_cat.items()):
-        out.append(f"- {cat}")
-        for p in items:
-            out.append(f"  - [{p.get('name', p['repo'])}](projects/{p['slug']}.md)")
-    return "\n".join(out)
 
 
 # ---------------- Main ---------------- #
@@ -508,7 +355,10 @@ def main() -> int:
 
     validator = load_schema()
     registry = yaml.safe_load((ROOT / "registry.yaml").read_text(encoding="utf-8")) or {}
-    PROJECTS.mkdir(parents=True, exist_ok=True)
+    CONTENT.mkdir(parents=True, exist_ok=True)
+    # wipe stale entries so deletions in registry propagate
+    for old in CONTENT.glob("*.md"):
+        old.unlink()
 
     projects: list[dict] = []
     for entry in registry.get("repos", []) or []:
@@ -525,17 +375,7 @@ def main() -> int:
             projects.append(meta)
             print(f"[ok] (local) {path}")
 
-    projects.sort(key=sort_key, reverse=True)
-
-    (DOCS / "cards.md").write_text(render_cards(projects), encoding="utf-8")
-    (DOCS / "list.md").write_text(render_list(projects), encoding="utf-8")
-    (DOCS / "table.md").write_text(render_table(projects), encoding="utf-8")
-    (DOCS / "_sidebar.md").write_text(render_sidebar(projects), encoding="utf-8")
-    (DOCS / "_navbar.md").write_text(
-        "- [卡片](cards.md)\n- [列表](list.md)\n- [表格](table.md)\n",
-        encoding="utf-8",
-    )
-    print(f"\n[done] {len(projects)} projects aggregated")
+    print(f"\n[done] {len(projects)} projects written to {CONTENT.relative_to(ROOT)}/")
     return 0
 
 

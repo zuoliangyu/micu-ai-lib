@@ -1,0 +1,98 @@
+---
+import { getCollection } from 'astro:content';
+
+const projects = await getCollection('projects');
+const tagSet = new Set<string>();
+for (const p of projects) {
+  for (const t of p.data.tags || []) tagSet.add(t);
+}
+const tags = [...tagSet].sort((a, b) => a.localeCompare(b, 'zh'));
+---
+
+<div class="filters">
+  <div class="filter-search">
+    <input
+      type="search"
+      id="filter-search"
+      placeholder="搜索项目…（名称 / 简介 / 作者 / 分类 / tag）"
+      autocomplete="off"
+    />
+    <button class="filter-clear" id="filter-clear" type="button" hidden>清空</button>
+  </div>
+  {tags.length > 0 && (
+    <div class="tag-strip" role="group" aria-label="按 tag 过滤">
+      <span class="tag-strip-label">TAGS</span>
+      {tags.map((t) => (
+        <button class="tag-chip" data-tag={t.toLowerCase()} type="button">{t}</button>
+      ))}
+    </div>
+  )}
+</div>
+<p class="filter-empty" id="filter-empty" hidden>没有匹配项目。</p>
+
+<script>
+  type Section = { el: HTMLElement; items: HTMLElement[] };
+
+  const search = document.querySelector<HTMLInputElement>('#filter-search');
+  const clearBtn = document.querySelector<HTMLButtonElement>('#filter-clear');
+  const empty = document.querySelector<HTMLElement>('#filter-empty');
+  const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('.tag-chip'));
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-search]'));
+
+  // group items by their nearest [data-filter-section] ancestor (for the
+  // list view's per-category sections — hide a section when all its items
+  // are filtered out)
+  const sectionMap = new Map<HTMLElement, Section>();
+  for (const item of items) {
+    const sec = item.closest<HTMLElement>('[data-filter-section]');
+    if (!sec) continue;
+    if (!sectionMap.has(sec)) sectionMap.set(sec, { el: sec, items: [] });
+    sectionMap.get(sec)!.items.push(item);
+  }
+
+  const activeTags = new Set<string>();
+
+  function apply() {
+    if (!search) return;
+    const q = search.value.trim().toLowerCase();
+    let shown = 0;
+    for (const item of items) {
+      const text = item.dataset.search || '';
+      const tags = (item.dataset.tags || '').split(',').filter(Boolean);
+      const matchesSearch = !q || text.includes(q);
+      const matchesTags =
+        activeTags.size === 0 || tags.some((t) => activeTags.has(t));
+      const visible = matchesSearch && matchesTags;
+      item.hidden = !visible;
+      if (visible) shown += 1;
+    }
+    for (const { el, items: secItems } of sectionMap.values()) {
+      el.hidden = !secItems.some((i) => !i.hidden);
+    }
+    if (empty) empty.hidden = shown > 0;
+    if (clearBtn) clearBtn.hidden = q === '' && activeTags.size === 0;
+  }
+
+  search?.addEventListener('input', apply);
+  clearBtn?.addEventListener('click', () => {
+    if (search) search.value = '';
+    activeTags.clear();
+    for (const c of chips) c.classList.remove('is-active');
+    apply();
+    search?.focus();
+  });
+  for (const chip of chips) {
+    chip.addEventListener('click', () => {
+      const tag = chip.dataset.tag;
+      if (!tag) return;
+      if (activeTags.has(tag)) {
+        activeTags.delete(tag);
+        chip.classList.remove('is-active');
+      } else {
+        activeTags.add(tag);
+        chip.classList.add('is-active');
+      }
+      apply();
+    });
+  }
+</script>

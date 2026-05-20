@@ -1,0 +1,99 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageToc from '../../components/PageToc.astro';
+import { STATUS_LABEL, HOST_LABEL, relativeTime } from '../../lib/format';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((entry) => ({
+    params: { slug: entry.data.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const p = entry.data;
+const status = p.status;
+const statusLabel = status ? STATUS_LABEL[status] ?? status : '';
+const activity = relativeTime(p.last_commit) || '—';
+const hasToc = headings.some((h) => h.depth >= 2 && h.depth <= 4);
+---
+
+<Base view="project" activeSlug={p.slug} title={`${p.name} · MICU AI 开放社区`}>
+  <div class={hasToc ? 'toc-layout' : ''}>
+    <article>
+    <h1 style="font-family: Fraunces, 'Noto Serif SC', serif; font-size: 36px; margin: 0 0 12px;">
+      {p.name}
+    </h1>
+    {p.summary && <p style="font-size: 16px; color: var(--ink-mute); max-width: 70ch; margin: 0 0 24px;">{p.summary}</p>}
+
+    <div class="project-meta">
+      <div class="field">
+        <span class="field-label">Repo</span>
+        <span class="field-value">
+          {p.web_url ? <a href={p.web_url} target="_blank" rel="noopener">{p.repo}</a> : p.repo}
+        </span>
+      </div>
+      <div class="field">
+        <span class="field-label">Host</span>
+        <span class="field-value">{HOST_LABEL[p.host] ?? p.host}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Authors</span>
+        <span class="field-value">{(p.authors || []).join(', ') || '—'}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Category</span>
+        <span class="field-value">
+          <span class="badge badge-category">{p.category}</span>
+        </span>
+      </div>
+      <div class="field">
+        <span class="field-label">Status</span>
+        <span class="field-value">
+          {status ? <span class={`badge badge-status-${status}`}>{statusLabel}</span> : '—'}
+        </span>
+      </div>
+      <div class="field">
+        <span class="field-label">Last commit</span>
+        <span class="field-value">{activity}</span>
+      </div>
+      {p.updated && (
+        <div class="field">
+          <span class="field-label">Updated</span>
+          <span class="field-value">{p.updated}</span>
+        </div>
+      )}
+      {p.demo && (
+        <div class="field">
+          <span class="field-label">Demo</span>
+          <span class="field-value"><a href={p.demo} target="_blank" rel="noopener">{p.demo}</a></span>
+        </div>
+      )}
+      {p.links && Object.entries(p.links).map(([k, v]) => (
+        <div class="field">
+          <span class="field-label">{k}</span>
+          <span class="field-value"><a href={v} target="_blank" rel="noopener">{v}</a></span>
+        </div>
+      ))}
+      {p.tags && p.tags.length > 0 && (
+        <div class="field">
+          <span class="field-label">Tags</span>
+          <span class="field-value">
+            {p.tags.map((t) => <span class="tag">{t}</span>)}
+          </span>
+        </div>
+      )}
+    </div>
+
+    <hr style="border: none; border-top: 1px solid var(--rule-soft); margin: 32px 0;" />
+
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+  <PageToc headings={headings} />
+  </div>
+</Base>

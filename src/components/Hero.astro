@@ -1,0 +1,28 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { relativeTime } from '../lib/format';
+
+interface Props {
+  projects: CollectionEntry<'projects'>[];
+}
+const { projects } = Astro.props;
+
+const categories = new Set(projects.map((p) => p.data.category).filter(Boolean));
+const latest = projects
+  .map((p) => p.data.last_commit || '')
+  .filter(Boolean)
+  .sort()
+  .at(-1);
+const latestHuman = latest ? relativeTime(latest) : '—';
+---
+
+<section class="hero">
+  <span class="eyebrow">MICU · AI · LIBRARY</span>
+  <h1>工作室<em>项目矩阵</em></h1>
+  <p>聚合工作室所有 AI 相关项目，每个项目都附带简介、作者与最近更新。三种视图任挑——卡片速览、列表按类聚合、表格按字段对比。</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">{projects.length}</span><span class="label">项目</span></div>
+    <div class="hero-stat"><span class="num">{categories.size}</span><span class="label">分类</span></div>
+    <div class="hero-stat"><span class="num">{latestHuman}</span><span class="label">最近更新</span></div>
+  </div>
+</section>

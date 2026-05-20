@@ -1,0 +1,23 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import Filters from '../components/Filters.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+
+const projects = await getCollection('projects');
+projects.sort((a, b) => {
+  const ax = a.data.last_commit || a.data.updated || '';
+  const bx = b.data.last_commit || b.data.updated || '';
+  return bx.localeCompare(ax);
+});
+---
+
+<Base view="cards" title="MICU AI 开放社区 · 项目矩阵">
+  <Hero projects={projects} />
+  <Filters />
+
+  <section class="card-grid">
+    {projects.map((p) => <ProjectCard project={p} />)}
+  </section>
+</Base>

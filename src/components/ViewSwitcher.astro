@@ -1,0 +1,13 @@
+---
+interface Props {
+  view: 'cards' | 'list' | 'table' | 'project';
+}
+const { view } = Astro.props;
+const cls = (v: string) => `viewbtn${view === v ? ' is-active' : ''}`;
+---
+
+<nav class="brand-views" aria-label="视图切换">
+  <a class={cls('cards')} href="/">卡片</a>
+  <a class={cls('list')}  href="/list">列表</a>
+  <a class={cls('table')} href="/table">表格</a>
+</nav>

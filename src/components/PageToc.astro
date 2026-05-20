@@ -1,0 +1,66 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+interface Props {
+  headings: Heading[];
+}
+const { headings } = Astro.props;
+const items = headings.filter((h) => h.depth >= 2 && h.depth <= 4);
+---
+
+{items.length > 0 && (
+  <aside class="toc" aria-label="目录">
+    <div class="toc-title">目录</div>
+    <ul>
+      {items.map((h) => (
+        <li class={`toc-h${h.depth}`}>
+          <a href={`#${h.slug}`}>{h.text}</a>
+        </li>
+      ))}
+    </ul>
+  </aside>
+)}
+
+<script>
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.toc a'));
+  if (links.length > 0) {
+    const ids = links.map((a) => a.getAttribute('href')!.slice(1));
+    const targets = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+
+    const setActive = (id: string) => {
+      for (const a of links) {
+        a.classList.toggle('is-active', a.getAttribute('href') === '#' + id);
+      }
+    };
+
+    const visible = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) visible.add(e.target.id);
+          else visible.delete(e.target.id);
+        }
+        // pick the visible heading closest to viewport top (smallest top y)
+        let activeId = '';
+        let bestTop = Infinity;
+        for (const id of visible) {
+          const el = document.getElementById(id);
+          if (!el) continue;
+          const top = el.getBoundingClientRect().top;
+          if (top < bestTop) {
+            bestTop = top;
+            activeId = id;
+          }
+        }
+        if (activeId) setActive(activeId);
+      },
+      { rootMargin: '-80px 0px -60% 0px', threshold: 0 },
+    );
+    targets.forEach((el) => observer.observe(el));
+  }
+</script>

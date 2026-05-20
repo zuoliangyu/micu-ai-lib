@@ -1,0 +1,82 @@
+---
+import '../styles/global.css';
+import BrandBlock from '../components/BrandBlock.astro';
+import Sidebar from '../components/Sidebar.astro';
+
+interface Props {
+  title?: string;
+  view?: 'cards' | 'list' | 'table' | 'project';
+  activeSlug?: string;
+}
+const { title = 'MICU AI 开放社区 · 工作室项目矩阵', view = 'cards', activeSlug } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="micu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <link rel="icon" type="image/png" href="/assets/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+  />
+  <script is:inline>
+    // pre-paint theme to avoid flash
+    (function () {
+      try {
+        var key = 'micu-ai-lib-theme-v2';
+        var saved = localStorage.getItem(key);
+        var theme =
+          saved === 'dark' || saved === 'micu'
+            ? saved
+            : window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'micu';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="paper-grain" aria-hidden="true"></div>
+  <div class="paper-noise" aria-hidden="true"></div>
+
+  <div class="shell">
+    <div class="rail">
+      <BrandBlock view={view} />
+      <Sidebar activeSlug={activeSlug} />
+    </div>
+
+    <main class="content">
+      <slot />
+    </main>
+  </div>
+
+  <script is:inline>
+    (function () {
+      var KEY = 'micu-ai-lib-theme-v2';
+      function apply(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        var icon = document.getElementById('theme-toggle-icon');
+        var label = document.getElementById('theme-toggle-label');
+        if (icon) icon.textContent = t === 'dark' ? '○' : '◐';
+        if (label) label.textContent = t === 'dark' ? 'LIGHT' : 'DARK';
+        try { localStorage.setItem(KEY, t); } catch (e) {}
+      }
+      var current = document.documentElement.getAttribute('data-theme') || 'micu';
+      apply(current);
+      var btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.addEventListener('click', function () {
+          apply(document.documentElement.getAttribute('data-theme') === 'dark' ? 'micu' : 'dark');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

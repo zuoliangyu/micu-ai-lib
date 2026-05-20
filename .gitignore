@@ -1,10 +1,10 @@
-# aggregate.py 生成的内容，不进版本库；CI 部署到 Netlify 时实时构建
-docs/projects/
-docs/cards.md
-docs/list.md
-docs/table.md
-docs/_sidebar.md
-docs/_navbar.md
+# aggregate.py 生成的内容；CI 部署到 Netlify 时实时构建
+src/content/projects/
+
+# Astro build artifacts
+node_modules/
+dist/
+.astro/
 
 __pycache__/
 *.pyc

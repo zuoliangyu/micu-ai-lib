@@ -1,0 +1,57 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { STATUS_LABEL, HOST_LABEL, relativeTime, activityClass } from '../lib/format';
+
+interface Props {
+  project: CollectionEntry<'projects'>;
+}
+const { project } = Astro.props;
+const p = project.data;
+const activity = relativeTime(p.last_commit);
+const actCls = activityClass(p.last_commit);
+const tags = (p.tags || []).slice(0, 4);
+const statusLabel = p.status ? STATUS_LABEL[p.status] ?? p.status : '';
+
+const searchText = [
+  p.name,
+  p.summary,
+  p.category,
+  (p.authors || []).join(' '),
+  (p.tags || []).join(' '),
+]
+  .join(' ')
+  .toLowerCase();
+const tagAttr = (p.tags || []).map((t) => t.toLowerCase()).join(',');
+---
+
+<a class="card" href={`/projects/${p.slug}`} data-search={searchText} data-tags={tagAttr}>
+  {p.cover ? (
+    <div class="card-cover" style={`background-image:url(${p.cover})`}></div>
+  ) : (
+    <div class="card-cover no-cover">{p.category || '·'}</div>
+  )}
+  <div class="card-body">
+    <div class="card-eyebrow">
+      {p.host !== 'github' && (
+        <span class={`badge badge-host-${p.host}`}>{HOST_LABEL[p.host] ?? p.host}</span>
+      )}
+      {p.category && <span class="badge badge-category">{p.category}</span>}
+      {p.status && <span class={`badge badge-status-${p.status}`}>{statusLabel}</span>}
+    </div>
+    <h3 class="card-title">{p.name}</h3>
+    <p class="card-summary">{p.summary}</p>
+    {tags.length > 0 && (
+      <div class="card-tags">
+        {tags.map((t) => <span class="tag">{t}</span>)}
+      </div>
+    )}
+    <div class="card-foot">
+      <span class="card-authors">{(p.authors || []).join(', ')}</span>
+      {activity && (
+        <span class={`card-activity ${actCls}`}>
+          <span class="activity-dot"></span>{activity}
+        </span>
+      )}
+    </div>
+  </div>
+</a>

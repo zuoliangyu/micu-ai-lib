@@ -1,6 +1,6 @@
 # MICU AI 资源库
 
-MICU 工作室 AI 项目聚合站点。成员仓库提交 `project.yaml`，主仓库按计划拉取并渲染为在线 docsify 文档。
+MICU 工作室 AI 项目聚合站点。成员仓库提交 `project.yaml`，主仓库定时拉取并由 Astro 渲染为静态站点。
 
 在线访问：<https://micu-ai-lib.netlify.app>
 
@@ -11,12 +11,22 @@ micu-ai-lib/
 ├── registry.yaml                    # 成员仓库白名单（owner/repo 列表）
 ├── templates/project.yaml           # 成员仓库要复制的元数据模板
 ├── scripts/
-│   ├── aggregate.py                 # 聚合脚本（GitHub Action 调用）
+│   ├── aggregate.py                 # 聚合脚本：拉 project.yaml + README，写成 Astro content
 │   ├── add_repo.py                  # 把一个 owner/repo 追加进 registry
-│   └── schemas/project.schema.json  # project.yaml 的 JSON Schema 校验规则
+│   └── schemas/project.schema.json  # project.yaml 的 JSON Schema
 ├── .github/workflows/aggregate.yml  # 定时 + 手动 + dispatch 触发
-└── docs/
-    └── index.html                   # docsify 入口（其他 md 由 aggregate.py 生成、不进 git）
+├── public/assets/                   # 静态资源（logo 等）
+├── src/
+│   ├── content.config.ts            # Astro content collection schema
+│   ├── content/projects/            # 聚合产物（不进 git；CI 实时生成）
+│   ├── layouts/Base.astro           # 主布局：brand 块 + sidebar + content
+│   ├── components/                  # BrandBlock / Sidebar / Filters / ProjectCard / PageToc 等
+│   ├── pages/                       # index / list / table / projects/[...slug]
+│   ├── lib/format.ts                # 时间、分类等工具
+│   └── styles/global.css            # 主题（亮 / 暗）+ 全局样式
+├── astro.config.mjs
+├── package.json
+└── netlify.toml
 ```
 
 ## 添加新项目（推荐用法）
@@ -25,34 +35,39 @@ micu-ai-lib/
 
 1. 打开 GitHub → `zuoliangyu/micu-ai-lib` → **Actions** → 左侧 `Aggregate MICU AI Lib`
 2. 右上角 **Run workflow** → `add_repo` 框填 `owner/repo`（比如 `someone/awesome-rag`）→ 点 Run
-3. workflow 自动把它加进 `registry.yaml` 并 commit、聚合、部署。手机也能操作。
+3. workflow 自动把它加进 `registry.yaml` 并 commit、聚合、构建、部署。手机也能操作。
 
-留空 `add_repo` 直接 Run 就是常规的"重新拉取所有项目"。
+留空 `add_repo` 直接 Run 就是常规的「重新拉取所有项目」。
 
-## 本地预览
+## 本地开发
+
+需要 Python（聚合）+ Node 22（构建）。
 
 ```bash
-# 跑一次聚合（拉 registry 里所有远程项目）
+# 1. 拉所有项目的 project.yaml + README → src/content/projects/*.md
 python scripts/aggregate.py
 
 # 顺带预览本地未 push 的项目（可重复 --local）
 python scripts/aggregate.py --local "E:/path/to/repo-a" --local "E:/path/to/repo-b"
 
-# 起 docsify 服务（任选其一）
-npx docsify-cli serve docs
-python -m http.server -d docs 3000
+# 2. 起 Astro dev server（默认 http://localhost:4321）
+npm install            # 首次
+npm run dev
+
+# 3. 构建静态站点（输出 dist/）
+npm run build
 ```
 
-依赖：`pip install pyyaml jsonschema`
+Python 依赖：`pip install pyyaml jsonschema`
 
 ## 部署
 
 托管在 Netlify，由 GitHub Action 推送构建产物：
 
-- Action 每 6 小时跑一次 `scripts/aggregate.py`，把生成的 `docs/` 通过 `nwtgck/actions-netlify` 部署到 Netlify。
-- 仓库 Secrets 需要 `NETLIFY_AUTH_TOKEN`（Netlify 用户的 Personal access token）和 `NETLIFY_SITE_ID`（站点 UUID）。
-- Settings → Actions → General → Workflow permissions 选 **Read and write**（`add_repo` 触发时需要 commit 回 registry）。
-- 发布目录、headers 等由根目录 `netlify.toml` 声明。
+- Action 每 6 小时跑一次：`aggregate.py` 拉数据 → `npm run build` 出 `dist/` → `nwtgck/actions-netlify` 推到 Netlify。
+- 仓库 Secrets：`NETLIFY_AUTH_TOKEN`（Personal access token）+ `NETLIFY_SITE_ID`（站点 UUID）。
+- Settings → Actions → General → Workflow permissions 选 **Read and write**（`add_repo` 触发时要 commit 回 registry）。
+- 发布目录、headers 由根目录 `netlify.toml` 声明。
 
 ## 成员侧的 project.yaml
 

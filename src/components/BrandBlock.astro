@@ -1,0 +1,27 @@
+---
+import ViewSwitcher from './ViewSwitcher.astro';
+
+interface Props {
+  view?: 'cards' | 'list' | 'table' | 'project';
+}
+const { view = 'cards' } = Astro.props;
+---
+
+<aside class="brand-block">
+  <a class="brand-logo" href="/" aria-label="首页">
+    <img src="/assets/logo.png" alt="MICU" />
+  </a>
+  <div class="brand-title">MICU<em>AI 开放社区</em></div>
+  <div class="brand-tagline">studio · projects · community</div>
+  <div class="brand-actions">
+    <button class="topbtn" id="theme-toggle" type="button" title="切换亮暗主题">
+      <span class="topbtn-icon" id="theme-toggle-icon">◐</span>
+      <span id="theme-toggle-label">DARK</span>
+    </button>
+    <a class="topbtn" href="https://github.com/zuoliangyu/micu-ai-lib" target="_blank" rel="noopener" title="GitHub 仓库">
+      <span class="topbtn-icon">↗</span><span>GITHUB</span>
+    </a>
+  </div>
+  <ViewSwitcher view={view} />
+  <a class="home-link" href="/">← 返回主页</a>
+</aside>

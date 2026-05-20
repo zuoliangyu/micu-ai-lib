@@ -1,0 +1,80 @@
+---
+import { getCollection } from 'astro:content';
+import { groupByCategory } from '../lib/format';
+
+interface Props {
+  activeSlug?: string;
+}
+const { activeSlug } = Astro.props;
+
+const projects = await getCollection('projects');
+projects.sort((a, b) => {
+  const ax = a.data.last_commit || a.data.updated || '';
+  const bx = b.data.last_commit || b.data.updated || '';
+  return bx.localeCompare(ax);
+});
+const grouped = groupByCategory(projects);
+---
+
+<nav class="nav" aria-label="项目导航">
+  {
+    [...grouped.entries()].map(([cat, items]) => (
+      <details class="nav-section" data-cat={cat} open>
+        <summary class="nav-group">
+          <span class="nav-group-caret" aria-hidden="true">▸</span>
+          <span class="nav-group-name">{cat}</span>
+          <span class="nav-group-count">{items.length}</span>
+        </summary>
+        <ul>
+          {items.map((p) => (
+            <li>
+              <a
+                href={`/projects/${p.data.slug}`}
+                class={p.data.slug === activeSlug ? 'is-active' : ''}
+              >
+                {p.data.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    ))
+  }
+</nav>
+
+<script>
+  const KEY = 'micu-ai-lib-nav-collapsed-v1';
+  const sections = document.querySelectorAll<HTMLDetailsElement>('.nav-section');
+
+  let collapsed = new Set<string>();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) collapsed = new Set(JSON.parse(raw) as string[]);
+  } catch {}
+
+  // restore saved state
+  for (const d of sections) {
+    const cat = d.dataset.cat;
+    if (cat && collapsed.has(cat)) d.open = false;
+  }
+
+  // auto-open the section containing the active link
+  const active = document.querySelector('.nav a.is-active');
+  if (active) {
+    const owner = active.closest<HTMLDetailsElement>('.nav-section');
+    if (owner) owner.open = true;
+  }
+
+  // persist on toggle
+  for (const d of sections) {
+    d.addEventListener('toggle', () => {
+      const cat = d.dataset.cat;
+      if (!cat) return;
+      if (d.open) collapsed.delete(cat);
+      else collapsed.add(cat);
+      try {
+        localStorage.setItem(KEY, JSON.stringify([...collapsed]));
+      } catch {}
+    });
+  }
+</script>

@@ -1,0 +1,65 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import Filters from '../components/Filters.astro';
+import { HOST_LABEL, relativeTime } from '../lib/format';
+
+const projects = await getCollection('projects');
+projects.sort((a, b) => {
+  const ax = a.data.last_commit || a.data.updated || '';
+  const bx = b.data.last_commit || b.data.updated || '';
+  return bx.localeCompare(ax);
+});
+
+function searchText(p: typeof projects[number]): string {
+  return [
+    p.data.name,
+    p.data.summary,
+    p.data.category,
+    (p.data.authors || []).join(' '),
+    (p.data.tags || []).join(' '),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+---
+
+<Base view="table" title="表格视图 · MICU AI 开放社区">
+  <Hero projects={projects} />
+  <Filters />
+  <div class="prose">
+    <table>
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>分类</th>
+          <th>来源</th>
+          <th>作者</th>
+          <th>状态</th>
+          <th>活跃度</th>
+          <th>简介</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          projects.map((p) => {
+            const activity = relativeTime(p.data.last_commit) || p.data.updated || '';
+            const tagAttr = (p.data.tags || []).map((t) => t.toLowerCase()).join(',');
+            return (
+              <tr data-search={searchText(p)} data-tags={tagAttr}>
+                <td><a href={`/projects/${p.data.slug}`}>{p.data.name}</a></td>
+                <td>{p.data.category}</td>
+                <td>{HOST_LABEL[p.data.host] ?? p.data.host}</td>
+                <td>{(p.data.authors || []).join(', ')}</td>
+                <td>{p.data.status ?? ''}</td>
+                <td>{activity}</td>
+                <td>{p.data.summary}</td>
+              </tr>
+            );
+          })
+        }
+      </tbody>
+    </table>
+  </div>
+</Base>

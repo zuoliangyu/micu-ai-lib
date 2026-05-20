@@ -1,0 +1,57 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import Filters from '../components/Filters.astro';
+import { groupByCategory, relativeTime } from '../lib/format';
+
+const projects = await getCollection('projects');
+projects.sort((a, b) => {
+  const ax = a.data.last_commit || a.data.updated || '';
+  const bx = b.data.last_commit || b.data.updated || '';
+  return bx.localeCompare(ax);
+});
+const grouped = groupByCategory(projects);
+
+function searchText(p: typeof projects[number]): string {
+  return [
+    p.data.name,
+    p.data.summary,
+    p.data.category,
+    (p.data.authors || []).join(' '),
+    (p.data.tags || []).join(' '),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+---
+
+<Base view="list" title="列表视图 · MICU AI 开放社区">
+  <Hero projects={projects} />
+  <Filters />
+  <div class="prose">
+    {
+      [...grouped.entries()].map(([cat, items]) => (
+        <section data-filter-section>
+          <h2>{cat}</h2>
+          <ul>
+            {items.map((p) => {
+              const activity = relativeTime(p.data.last_commit);
+              const tagAttr = (p.data.tags || []).map((t) => t.toLowerCase()).join(',');
+              return (
+                <li data-search={searchText(p)} data-tags={tagAttr}>
+                  <a href={`/projects/${p.data.slug}`}>{p.data.name}</a>
+                  {' — '}
+                  {p.data.summary}
+                  {' '}
+                  <em>({(p.data.authors || []).join(', ')})</em>
+                  {activity && <> — <em>{activity}</em></>}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+</Base>

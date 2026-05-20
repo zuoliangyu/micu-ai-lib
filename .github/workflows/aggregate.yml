@@ -30,6 +30,13 @@ jobs:
 
       - run: pip install pyyaml jsonschema
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
       - name: Add new repo to registry
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != '' }}
         run: python scripts/add_repo.py "${{ github.event.inputs.add_repo }}"
@@ -50,10 +57,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/aggregate.py
 
+      - name: Build site
+        run: npm run build
+
       - name: Deploy to Netlify
         uses: nwtgck/actions-netlify@v3.0
         with:
-          publish-dir: ./docs
+          publish-dir: ./dist
           production-deploy: true
           deploy-message: "Aggregate ${{ github.sha }}"
           enable-pull-request-comment: false
