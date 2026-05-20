@@ -294,28 +294,81 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
 # ---------------- Rendering ---------------- #
 
 
-def write_project_page(meta: dict) -> None:
-    repo_link = (
-        f"[{meta['repo']}]({meta['web_url']})" if meta.get("web_url") else meta["repo"]
+STATUS_LABEL = {
+    "in-progress": "进行中",
+    "done": "已完成",
+    "archived": "已归档",
+}
+
+
+def activity_class(iso: str | None) -> str:
+    """fresh < 7 天, warm < 30 天, 否则 cold."""
+    if not iso:
+        return "activity-cold"
+    try:
+        d = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return "activity-cold"
+    days = (datetime.now(timezone.utc) - d).days
+    if days < 7:
+        return "activity-fresh"
+    if days < 30:
+        return "activity-warm"
+    return "activity-cold"
+
+
+def _field(label: str, value_html: str) -> str:
+    return (
+        f'<div class="field"><span class="field-label">{label}</span>'
+        f'<span class="field-value">{value_html}</span></div>'
     )
-    lines = [
-        f"# {meta.get('name', meta['repo'])}\n",
-        f"> {meta.get('summary', '')}\n",
-        f"- **Repo:** {repo_link}",
-        f"- **Host:** {host_badge(meta.get('host', 'github'))}",
-        f"- **Authors:** {', '.join(meta.get('authors', []))}",
-        f"- **Category:** {meta.get('category', '')}",
-        f"- **Tags:** {', '.join(meta.get('tags', []))}",
-        f"- **Status:** {meta.get('status', '')}",
-        f"- **Updated:** {meta.get('updated', '')}",
+
+
+def write_project_page(meta: dict) -> None:
+    host = meta.get("host", "github")
+    status = meta.get("status", "")
+    status_html = (
+        f'<span class="badge badge-status-{status}">{STATUS_LABEL.get(status, status)}</span>'
+        if status else "—"
+    )
+    repo_html = (
+        f'<a href="{meta["web_url"]}" target="_blank" rel="noopener">{meta["repo"]}</a>'
+        if meta.get("web_url") else meta["repo"]
+    )
+    tags_html = " ".join(f'<span class="tag">{t}</span>' for t in meta.get("tags", [])) or "—"
+    authors_html = ", ".join(meta.get("authors", [])) or "—"
+    activity = relative_time(meta.get("last_commit")) or "—"
+
+    fields = [
+        _field("Repo", repo_html),
+        _field("Host", host_badge(host)),
+        _field("Authors", authors_html),
+        _field("Category", f'<span class="badge badge-category">{meta.get("category", "")}</span>'),
+        _field("Status", status_html),
+        _field("Last commit", activity),
     ]
-    if meta.get("last_commit"):
-        lines.append(f"- **Last commit:** {relative_time(meta['last_commit'])}")
-    for k, v in (meta.get("links") or {}).items():
-        lines.append(f"- **{k.capitalize()}:** {v}")
+    if meta.get("updated"):
+        fields.append(_field("Updated", str(meta["updated"])))
     if meta.get("demo"):
-        lines.append(f"- **Demo:** {meta['demo']}")
-    lines += ["\n---\n", meta["readme_body"]]
+        fields.append(_field("Demo", f'<a href="{meta["demo"]}" target="_blank" rel="noopener">{meta["demo"]}</a>'))
+    for k, v in (meta.get("links") or {}).items():
+        fields.append(_field(k.capitalize(), f'<a href="{v}" target="_blank" rel="noopener">{v}</a>'))
+    if meta.get("tags"):
+        fields.append(_field("Tags", tags_html))
+
+    meta_block = '<div class="project-meta">' + "".join(fields) + "</div>"
+
+    lines = [
+        f"# {meta.get('name', meta['repo'])}",
+        "",
+        f"> {meta.get('summary', '')}",
+        "",
+        meta_block,
+        "",
+        "---",
+        "",
+        meta["readme_body"],
+    ]
     (PROJECTS / f"{meta['slug']}.md").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -323,25 +376,72 @@ def sort_key(p: dict) -> str:
     return p.get("last_commit") or p.get("updated") or ""
 
 
+def render_hero(projects: list[dict]) -> str:
+    categories = {p.get("category", "") for p in projects if p.get("category")}
+    latest = max((p.get("last_commit") or "" for p in projects), default="")
+    latest_human = relative_time(latest) if latest else "—"
+    return (
+        '<section class="hero">'
+        '<span class="eyebrow">MICU · AI · LIBRARY</span>'
+        '<h1>工作室<em>项目矩阵</em></h1>'
+        '<p>聚合工作室所有 AI 相关项目，每张卡是一个仓库的快照——简介 / 作者 / 最近更新一目了然。点开看详情。</p>'
+        '<div class="hero-stats">'
+        f'<div class="hero-stat"><span class="num">{len(projects)}</span><span class="label">项目</span></div>'
+        f'<div class="hero-stat"><span class="num">{len(categories)}</span><span class="label">分类</span></div>'
+        f'<div class="hero-stat"><span class="num">{latest_human}</span><span class="label">最近更新</span></div>'
+        '</div>'
+        '</section>'
+    )
+
+
 def render_cards(projects: list[dict]) -> str:
-    out = ["# 卡片视图\n", '<div class="card-grid">']
+    out = [render_hero(projects), '<section class="card-grid">']
     for p in projects:
-        cover = f'<img src="{p["cover"]}" alt="">' if p.get("cover") else ""
+        host = p.get("host", "github")
+        status = p.get("status", "")
+        cover_html = (
+            f'<div class="card-cover" style="background-image:url({p["cover"]})"></div>'
+            if p.get("cover")
+            else f'<div class="card-cover no-cover">{p.get("category", "·")}</div>'
+        )
+        eyebrow_parts = []
+        if host != "github":
+            eyebrow_parts.append(f'<span class="badge badge-host-{host}">{host_badge(host)}</span>')
+        if p.get("category"):
+            eyebrow_parts.append(f'<span class="badge badge-category">{p["category"]}</span>')
+        if status:
+            eyebrow_parts.append(
+                f'<span class="badge badge-status-{status}">{STATUS_LABEL.get(status, status)}</span>'
+            )
+        eyebrow_html = (
+            f'<div class="card-eyebrow">{"".join(eyebrow_parts)}</div>' if eyebrow_parts else ""
+        )
+        tags_html = ""
+        if p.get("tags"):
+            chips = "".join(f'<span class="tag">{t}</span>' for t in p["tags"][:4])
+            tags_html = f'<div class="card-tags">{chips}</div>'
         activity = relative_time(p.get("last_commit"))
-        activity_html = f' · <span class="activity">{activity}</span>' if activity else ""
-        host_html = (
-            f' · <span class="host">{host_badge(p.get("host", ""))}</span>'
-            if p.get("host") and p["host"] != "github"
-            else ""
+        activity_html = (
+            f'<span class="card-activity {activity_class(p.get("last_commit"))}">'
+            f'<span class="activity-dot"></span>{activity}</span>'
+            if activity else ""
         )
         out.append(
-            f'<a class="card" href="#/projects/{p["slug"]}">{cover}'
-            f'<h3>{p.get("name", p["repo"])}</h3>'
-            f'<p>{p.get("summary", "")}</p>'
-            f'<small>{", ".join(p.get("authors", []))} · {p.get("category", "")}{host_html}{activity_html}</small>'
-            f"</a>"
+            f'<a class="card" href="#/projects/{p["slug"]}">'
+            f'{cover_html}'
+            f'<div class="card-body">'
+            f'{eyebrow_html}'
+            f'<h3 class="card-title">{p.get("name", p["repo"])}</h3>'
+            f'<p class="card-summary">{p.get("summary", "")}</p>'
+            f'{tags_html}'
+            f'<div class="card-foot">'
+            f'<span class="card-authors">{", ".join(p.get("authors", []))}</span>'
+            f'{activity_html}'
+            f'</div>'
+            f'</div>'
+            f'</a>'
         )
-    out.append("</div>")
+    out.append("</section>")
     return "\n".join(out)
 
 

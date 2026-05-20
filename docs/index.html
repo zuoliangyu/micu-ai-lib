@@ -1,48 +1,64 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="zh-CN" data-theme="micu">
 <head>
-  <meta charset="UTF-8">
-  <title>MICU AI 资源库</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MICU AI 开放社区 · 工作室项目矩阵</title>
+  <link rel="icon" type="image/png" href="./assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..900,0..100;1,9..144,300..900,0..100&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
-  <style>
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
-    }
-    .card {
-      display: block;
-      padding: 16px;
-      border: 1px solid #e1e4e8;
-      border-radius: 8px;
-      text-decoration: none;
-      color: inherit;
-      background: #fff;
-      transition: box-shadow .2s, transform .2s;
-    }
-    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); transform: translateY(-2px); }
-    .card img { width: 100%; height: 140px; object-fit: cover; border-radius: 4px; }
-    .card h3 { margin: 8px 0 4px; font-size: 16px; }
-    .card p { margin: 0 0 8px; font-size: 14px; color: #586069; }
-    .card small { color: #999; font-size: 12px; }
-  </style>
+  <link rel="stylesheet" href="./assets/styles.css?v=20260520f">
 </head>
 <body>
+  <div class="paper-grain" aria-hidden="true"></div>
+  <div class="paper-noise" aria-hidden="true"></div>
+
+  <aside class="brand-block">
+    <a class="brand-logo" href="#/" aria-label="首页">
+      <img src="./assets/logo.png" alt="MICU">
+    </a>
+    <div class="brand-title">MICU<em>AI 开放社区</em></div>
+    <div class="brand-tagline">studio · projects · community</div>
+    <div class="brand-actions">
+      <button class="topbtn" id="theme-toggle" type="button" title="切换亮暗主题">
+        <span class="topbtn-icon" id="theme-toggle-icon">◐</span>
+        <span id="theme-toggle-label">DARK</span>
+      </button>
+      <a class="topbtn" href="https://github.com/zuoliangyu/micu-ai-lib" target="_blank" rel="noopener" title="GitHub 仓库">
+        <span class="topbtn-icon">↗</span><span>GITHUB</span>
+      </a>
+    </div>
+  </aside>
+
   <div id="app">Loading…</div>
+
+  <script src="./assets/app.js?v=20260520e"></script>
   <script>
     window.$docsify = {
-      name: 'MICU AI 资源库',
+      name: '',
       loadSidebar: true,
-      loadNavbar: true,
+      loadNavbar: false,
       subMaxLevel: 3,
       auto2top: true,
-      search: 'auto',
-      homepage: 'cards.md'
+      homepage: 'cards.md',
+      relativePath: false,
+      search: {
+        placeholder: '搜索项目…',
+        noData: '无匹配结果',
+        depth: 3,
+        hideOtherSidebarContent: false,
+      },
+      copyCode: {
+        buttonText: '复制',
+        errorText: '失败',
+        successText: '已复制',
+      },
     };
   </script>
   <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
 </body>
 </html>
