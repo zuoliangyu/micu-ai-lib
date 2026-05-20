@@ -21,12 +21,28 @@ function currentTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? DARK : LIGHT;
 }
 
+function currentView() {
+  const path = location.hash.replace(/^#\/?/, "").split(/[?#]/)[0];
+  if (path === "" || path === "cards") return "cards";
+  if (path === "list" || path === "table") return path;
+  return "";
+}
+
+function syncViewButtons() {
+  const active = currentView();
+  document.querySelectorAll(".viewbtn").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.view === active);
+  });
+}
+
 function init() {
   applyTheme(currentTheme());
   document.getElementById("theme-toggle")?.addEventListener("click", () => {
     const next = document.documentElement.getAttribute("data-theme") === DARK ? LIGHT : DARK;
     applyTheme(next);
   });
+  syncViewButtons();
+  window.addEventListener("hashchange", syncViewButtons);
 }
 
 if (document.readyState === "loading") {

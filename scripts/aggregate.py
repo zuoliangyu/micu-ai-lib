@@ -481,21 +481,14 @@ def render_table(projects: list[dict]) -> str:
 
 
 def render_sidebar(projects: list[dict]) -> str:
-    out = [
-        "- [首页](/)",
-        "- 视图",
-        "  - [卡片](cards.md)",
-        "  - [列表](list.md)",
-        "  - [表格](table.md)",
-        "- 项目",
-    ]
+    out: list[str] = []
     by_cat: dict[str, list[dict]] = defaultdict(list)
     for p in projects:
         by_cat[p.get("category", "Other")].append(p)
     for cat, items in sorted(by_cat.items()):
-        out.append(f"  - {cat}")
+        out.append(f"- {cat}")
         for p in items:
-            out.append(f"    - [{p.get('name', p['repo'])}](projects/{p['slug']}.md)")
+            out.append(f"  - [{p.get('name', p['repo'])}](projects/{p['slug']}.md)")
     return "\n".join(out)
 
 

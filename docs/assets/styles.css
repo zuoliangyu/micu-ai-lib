@@ -162,6 +162,35 @@ p { margin: 0; color: var(--ink-soft); }
 .topbtn:hover { border-color: var(--accent) !important; color: var(--accent); }
 .topbtn-icon { font-size: 11px; line-height: 1; }
 
+/* view switcher — segmented control under brand-actions */
+.brand-views {
+  display: flex;
+  align-self: stretch;
+  margin-top: 8px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-soft);
+  background: var(--paper);
+}
+.viewbtn {
+  flex: 1;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 999px;
+  font: 500 10px "JetBrains Mono", monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none !important;
+  border-bottom: none !important;
+  transition: background 0.15s, color 0.15s;
+}
+.viewbtn:hover { color: var(--accent); }
+.viewbtn.is-active {
+  background: var(--accent);
+  color: var(--paper);
+}
+
 /* ============================================================
    DOCSIFY OVERRIDES
    ============================================================ */
