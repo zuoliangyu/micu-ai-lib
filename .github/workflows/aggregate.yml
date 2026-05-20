@@ -2,11 +2,11 @@ name: Aggregate MICU AI Lib
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # 每 6 小时跑一次
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       add_repo:
-        description: '要新加入 registry 的 owner/repo（留空则只跑常规聚合）'
+        description: 'owner/repo to add (optional)'
         required: false
         default: ''
   repository_dispatch:
@@ -21,6 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,11 +36,11 @@ jobs:
       - run: pip install pyyaml jsonschema
 
       - name: Add new repo to registry
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != ''
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != '' }}
         run: python scripts/add_repo.py "${{ github.event.inputs.add_repo }}"
 
       - name: Commit registry update
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != ''
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != '' }}
         run: |
           git config user.name "micu-ai-lib-bot"
           git config user.email "micu-ai-lib-bot@users.noreply.github.com"
@@ -56,15 +61,5 @@ jobs:
         with:
           path: docs
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
