@@ -13,13 +13,25 @@ REGISTRY = ROOT / "registry.yaml"
 REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 
 
+def normalize_repo(arg: str) -> str:
+    """Accept owner/repo, full GitHub URL, or git@ form; return owner/repo."""
+    s = arg.strip().rstrip("/")
+    for prefix in ("https://github.com/", "http://github.com/", "git@github.com:"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    if s.endswith(".git"):
+        s = s[:-4]
+    return s
+
+
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: add_repo.py owner/repo", file=sys.stderr)
+        print("usage: add_repo.py owner/repo|<github-url>", file=sys.stderr)
         return 2
-    new_repo = sys.argv[1].strip()
+    new_repo = normalize_repo(sys.argv[1])
     if not REPO_RE.match(new_repo):
-        print(f"[error] not a valid owner/repo: {new_repo!r}", file=sys.stderr)
+        print(f"[error] not a valid owner/repo: {sys.argv[1]!r}", file=sys.stderr)
         return 2
 
     data = yaml.safe_load(REGISTRY.read_text(encoding="utf-8")) or {}
