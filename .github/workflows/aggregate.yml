@@ -16,6 +16,11 @@ concurrency:
   group: aggregate
   cancel-in-progress: false
 
+env:
+  # nwtgck/actions-netlify@v3 still ships on Node 20; opt in to Node 24 early
+  # so we stop seeing the deprecation warning. Drop this once a v4 ships.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,7 +35,7 @@ jobs:
 
       - run: pip install pyyaml jsonschema
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
