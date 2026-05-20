@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MICU AI Lib project.yaml",
+  "type": "object",
+  "required": ["name", "authors", "category", "summary"],
+  "properties": {
+    "name":     { "type": "string", "minLength": 1 },
+    "authors":  { "type": "array",  "items": { "type": "string" }, "minItems": 1 },
+    "category": { "type": "string", "minLength": 1 },
+    "summary":  { "type": "string", "minLength": 1 },
+    "tags":     { "type": "array",  "items": { "type": "string" } },
+    "status":   { "type": "string", "enum": ["in-progress", "done", "archived"] },
+    "updated":  { "type": "string" },
+    "cover":    { "type": "string" },
+    "demo":     { "type": "string" },
+    "readme":   { "type": "string" },
+    "links":    {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

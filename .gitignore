@@ -1,0 +1,11 @@
+# aggregate.py 生成的内容，不进版本库；CI 部署到 Pages 时实时构建
+docs/projects/
+docs/cards.md
+docs/list.md
+docs/table.md
+docs/_sidebar.md
+docs/_navbar.md
+
+__pycache__/
+*.pyc
+.venv/

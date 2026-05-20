@@ -1,0 +1,18 @@
+# 成员仓库根目录放一份这个文件，名字就叫 project.yaml
+# 字段说明见下方注释，可选字段留空或删掉都行
+
+name: 项目名                  # 必填
+authors: [作者A, 作者B]       # 必填
+category: LLM                # 必填：LLM / CV / Agent / Tool / Other
+tags: [RAG, 检索增强]         # 可选
+status: in-progress          # in-progress / done / archived
+updated: 2026-05-19          # YYYY-MM-DD
+summary: 一句话简介，列表页就显示这个   # 必填
+
+cover: assets/cover.png      # 可选，相对仓库路径或完整 URL
+demo: https://...            # 可选
+readme: README.md            # 可选，详情页拉哪个文件，默认 README.md
+
+links:                       # 可选
+  paper: https://...
+  video: https://...
