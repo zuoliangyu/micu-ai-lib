@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import urllib.error
@@ -134,6 +135,43 @@ def cover_url(host: str, repo: str, cover: str) -> str:
     return cover
 
 
+# Match markdown inline images: ![alt](url) or ![alt](url "title").
+# Non-greedy alt + url so `![a](x) ![b](y)` on one line parses as two matches.
+_MD_INLINE_IMAGE_RE = re.compile(
+    r"(!\[[^\]]*\]\()"        # ![alt](
+    r"([^)\s]+)"              # url (no whitespace, no closing paren)
+    r"((?:\s+\"[^\"]*\")?\))"  # optional " "title" " then )
+)
+
+
+def _is_absolute_or_special_url(s: str) -> bool:
+    """True for protocols, protocol-relative, fragments, data URIs, mailto."""
+    return s.startswith(("http://", "https://", "//", "data:", "mailto:", "#"))
+
+
+def rewrite_readme_assets(body: str, host: str, repo: str) -> str:
+    """Rewrite `![alt](rel/path.png)` in README body to remote raw URLs.
+
+    The README is copied verbatim into the Astro content file. Repo-relative
+    image paths (e.g. `assets/cover.png`) no longer resolve there, so Astro's
+    image plugin crashes the build. Convert each relative path to the same
+    raw.githubusercontent.com / gitee raw URL we use for `cover`.
+
+    Only inline `![](...)` is handled — reference-style images and HTML `<img>`
+    are rare in member READMEs. Add later if a member's repo needs them.
+    """
+    if host not in ("github", "gitee") or not body:
+        return body
+
+    def _fix(match: re.Match) -> str:
+        prefix, url, suffix = match.group(1), match.group(2), match.group(3)
+        if _is_absolute_or_special_url(url):
+            return match.group(0)
+        return f"{prefix}{cover_url(host, repo, url)}{suffix}"
+
+    return _MD_INLINE_IMAGE_RE.sub(_fix, body)
+
+
 def make_slug(host: str, repo: str) -> str:
     """github stays bare for backward compat; other hosts get prefix."""
     repo_slug = repo.replace("/", "__")
@@ -233,7 +271,10 @@ def load_remote_project(entry: str, validator: Draft202012Validator) -> dict | N
     meta["repo"] = repo
     meta["slug"] = make_slug(host, repo)
     meta["web_url"] = web_url(host, repo)
-    meta["readme_body"] = fetch_raw(host, repo, meta.get("readme", "README.md")) or ""
+    meta["readme_body"] = rewrite_readme_assets(
+        fetch_raw(host, repo, meta.get("readme", "README.md")) or "",
+        host, repo,
+    )
     meta["last_commit"] = fetch_activity(host, repo)
     cover = meta.get("cover")
     if cover and not cover.startswith(("http://", "https://")):
@@ -276,6 +317,52 @@ FRONTMATTER_KEYS = (
 )
 
 
+# YAML 1.2 core schema int/float — broader than pyyaml's own (e.g. pyyaml
+# rejects "1e5" without a dot, but js-yaml — which Astro uses — accepts it).
+# Any string matching this MUST be quoted in frontmatter or it round-trips
+# back to a number on the JS side.
+_YAML12_NUMBER_RE = re.compile(
+    r"""^
+        [-+]?
+        (
+            \d+ (\.\d*)?       # 1, 1., 1.5
+          | \.\d+              # .5
+        )
+        ([eE][-+]?\d+)?        # optional exponent: 1e5, 1.5e-10
+        $""",
+    re.VERBOSE,
+)
+
+
+def _str_needs_quote(s: str) -> bool:
+    """True if the string would round-trip to a non-string (or be mangled).
+
+    Hand-enumerating YAML's implicit-type traps (numbers, dates, .inf, yes/no,
+    hex/oct, tags, anchors, ...) is fragile — pyyaml keeps finding new ones.
+    Instead, ask yaml itself: parse the bare string and see if we get the same
+    string back. Anything else → must be quoted.
+
+    Then, because pyyaml and js-yaml don't agree on every edge case (notably
+    "1e5"-style scientific notation), apply an extra YAML 1.2 number regex as
+    a safety net for the cross-implementation gap.
+    """
+    if not s or s != s.strip():
+        return True  # empty, or surrounding whitespace would be lost
+    try:
+        parsed = yaml.safe_load(s)
+    except yaml.YAMLError:
+        return True
+    if not isinstance(parsed, str) or parsed != s:
+        return True
+    if _YAML12_NUMBER_RE.match(s):
+        return True  # js-yaml would read this as a number
+    # Leading reserved indicators that some strict YAML 1.2 parsers reject even
+    # when pyyaml tolerates them.
+    if s[0] in ("@", "`"):
+        return True
+    return False
+
+
 def _yaml_scalar(value) -> str:
     """Inline scalar safe for YAML frontmatter — quote when needed."""
     if value is None:
@@ -285,17 +372,7 @@ def _yaml_scalar(value) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     s = str(value)
-    # quote strings that could be misread by YAML (incl. date-like ISO prefixes)
-    looks_like_date = len(s) >= 10 and s[:4].isdigit() and s[4] == "-" and s[7] == "-"
-    needs_quote = (
-        not s
-        or s != s.strip()
-        or any(c in s for c in (":", "#", "&", "*", "!", "|", ">", "%", "@", "`", "\"", "'"))
-        or s.lower() in ("true", "false", "null", "yes", "no", "on", "off")
-        or s[0] in ("-", "?", "[", "{", ",")
-        or looks_like_date
-    )
-    if needs_quote:
+    if _str_needs_quote(s):
         return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
     return s
 
