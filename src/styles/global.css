@@ -379,16 +379,23 @@ main.content {
   font-size: 0.9em;
 }
 .prose pre {
-  background: var(--paper-soft);
   border: 1px solid var(--rule-soft);
   border-radius: 8px;
   padding: 18px 20px;
   overflow-x: auto;
 }
+/* override Shiki's inline background to match the site surface */
+.prose pre.astro-code {
+  background-color: var(--paper-soft) !important;
+}
 .prose pre code {
   background: transparent;
   padding: 0;
   font-size: 13px;
+}
+/* dark-mode: soften light-themed code blocks so they don't glare */
+:root[data-theme="dark"] .prose pre.astro-code {
+  filter: brightness(0.85) saturate(0.6);
 }
 .prose table {
   border-collapse: collapse;
