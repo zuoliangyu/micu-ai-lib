@@ -30,6 +30,16 @@ SCHEMA_FILE = ROOT / "scripts" / "schemas" / "project.schema.json"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITEE_TOKEN = os.environ.get("GITEE_TOKEN")
 
+# Registry entries that were skipped this run, as (source, reason) pairs.
+# Surfaced at the end as ::warning:: annotations + a job summary so a bad or
+# project.yaml-less repo doesn't vanish silently.
+FAILURES: list[tuple[str, str]] = []
+
+
+def record_failure(source: str, reason: str) -> None:
+    FAILURES.append((source, reason))
+
+
 # ---------------- HTTP ---------------- #
 
 
@@ -260,12 +270,15 @@ def load_remote_project(entry: str, validator: Draft202012Validator) -> dict | N
     raw = fetch_raw(host, repo, "project.yaml")
     if not raw:
         print(f"[skip] {entry}: no project.yaml", file=sys.stderr)
+        record_failure(entry, "拉不到 project.yaml（不存在 / 拼错 / 缺文件 / 非公开）")
         return None
     parsed = safe_yaml_load(raw, entry)
     if parsed is None:
+        record_failure(entry, "project.yaml YAML 解析失败")
         return None
     meta = normalize(parsed)
     if not validate(meta, entry, validator):
+        record_failure(entry, "project.yaml 不符合 schema")
         return None
     meta["host"] = host
     meta["repo"] = repo
@@ -287,12 +300,15 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
     yaml_file = root / "project.yaml"
     if not yaml_file.is_file():
         print(f"[skip] {path}: no project.yaml", file=sys.stderr)
+        record_failure(f"(local) {path}", "目录下没有 project.yaml")
         return None
     parsed = safe_yaml_load(yaml_file.read_text(encoding="utf-8"), str(root))
     if parsed is None:
+        record_failure(f"(local) {path}", "project.yaml YAML 解析失败")
         return None
     meta = normalize(parsed)
     if not validate(meta, str(root), validator):
+        record_failure(f"(local) {path}", "project.yaml 不符合 schema")
         return None
     repo_id = f"local/{root.name}"
     meta["host"] = "local"
@@ -419,6 +435,35 @@ def sort_key(p: dict) -> str:
 # ---------------- Main ---------------- #
 
 
+def emit_failure_report(projects: list[dict]) -> None:
+    """Surface skipped entries where a human will actually see them.
+
+    - one ::warning:: annotation per skip (shows on the Actions run UI), and
+    - a markdown table appended to the job summary ($GITHUB_STEP_SUMMARY).
+    Both are no-ops locally (annotations are just stray stdout; summary env is
+    unset), so this stays quiet during `--local` previews.
+    """
+    for source, reason in FAILURES:
+        print(f"::warning title=Skipped {source}::{reason}")
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    lines = [
+        "## Aggregate 结果",
+        "",
+        f"- ✅ 写入 **{len(projects)}** 个项目",
+        f"- ⚠️ 跳过 **{len(FAILURES)}** 个",
+        "",
+    ]
+    if FAILURES:
+        lines += ["| 条目 | 原因 |", "|---|---|"]
+        lines += [f"| `{s}` | {r} |" for s, r in FAILURES]
+        lines.append("")
+    with open(summary_path, "a", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Aggregate MICU AI Lib")
     parser.add_argument(
@@ -432,13 +477,14 @@ def main() -> int:
 
     validator = load_schema()
     registry = yaml.safe_load((ROOT / "registry.yaml").read_text(encoding="utf-8")) or {}
+    registry_entries = registry.get("repos", []) or []
     CONTENT.mkdir(parents=True, exist_ok=True)
     # wipe stale entries so deletions in registry propagate
     for old in CONTENT.glob("*.md"):
         old.unlink()
 
     projects: list[dict] = []
-    for entry in registry.get("repos", []) or []:
+    for entry in registry_entries:
         meta = load_remote_project(entry, validator)
         if meta:
             write_project_page(meta)
@@ -452,7 +498,22 @@ def main() -> int:
             projects.append(meta)
             print(f"[ok] (local) {path}")
 
-    print(f"\n[done] {len(projects)} projects written to {CONTENT.relative_to(ROOT)}/")
+    emit_failure_report(projects)
+    print(
+        f"\n[done] {len(projects)} ok, {len(FAILURES)} skipped "
+        f"→ {CONTENT.relative_to(ROOT)}/"
+    )
+
+    # Fail-soft per entry, fail-hard only on total wipeout: if the registry had
+    # entries but nothing came through, something is systemically broken
+    # (registry.yaml mangled, mass outage) — fail so CI doesn't deploy an empty
+    # site over the live one.
+    if registry_entries and not projects:
+        print(
+            "[error] registry 非空但没有产出任何项目 —— 拒绝部署空站",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
