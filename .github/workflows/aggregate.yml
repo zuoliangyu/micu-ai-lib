@@ -2,7 +2,9 @@ name: Aggregate MICU AI Lib
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    # off the top of the hour — scheduled jobs at :00 are heavily contended
+    # and get delayed; :17 lands in a quieter window.
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       add_repo:
@@ -15,11 +17,6 @@ on:
 concurrency:
   group: aggregate
   cancel-in-progress: false
-
-env:
-  # nwtgck/actions-netlify@v3 still ships on Node 20; opt in to Node 24 early
-  # so we stop seeing the deprecation warning. Drop this once a v4 ships.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
@@ -42,13 +39,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Add new repo to registry
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != '' }}
-        run: python scripts/add_repo.py "${{ github.event.inputs.add_repo }}"
-
-      - name: Commit registry update
+      - name: Add new repo to registry & commit
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.add_repo != '' }}
         run: |
+          python scripts/add_repo.py "${{ github.event.inputs.add_repo }}"
           git config user.name "micu-ai-lib-bot"
           git config user.email "micu-ai-lib-bot@users.noreply.github.com"
           git add registry.yaml
@@ -57,24 +51,60 @@ jobs:
             git push
           fi
 
+      # Restore the fingerprint of the last *successfully deployed* build.
+      # Unique key per run + a rolling restore-keys prefix = "load the newest
+      # prior fingerprint, write a fresh one this run".
+      - name: Restore deploy fingerprint
+        uses: actions/cache/restore@v4
+        with:
+          path: .deploy-fingerprint
+          key: deploy-fingerprint-${{ github.run_id }}
+          restore-keys: deploy-fingerprint-
+
       - name: Aggregate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/aggregate.py
 
+      # Fingerprint = generated content + the commit being built. Either the
+      # upstream repos changed (content hash moves) or site code changed (HEAD
+      # moves) → redeploy. Both unchanged since the last deploy → skip.
+      - name: Detect changes since last deploy
+        id: detect
+        run: |
+          prev=$(cat .deploy-fingerprint 2>/dev/null || echo "")
+          content=$(find src/content/projects -type f -name '*.md' -print0 \
+                    | sort -z | xargs -0 -r sha256sum | sha256sum | cut -d' ' -f1)
+          curr=$(printf '%s\n%s\n' "$(git rev-parse HEAD)" "$content" \
+                 | sha256sum | cut -d' ' -f1)
+          printf '%s' "$curr" > .deploy-fingerprint
+          if [ "$prev" = "$curr" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No content or code change since last deploy — skipping build & deploy."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build site
+        if: ${{ steps.detect.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' }}
         run: npm run build
 
       - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v3.0
-        with:
-          publish-dir: ./dist
-          production-deploy: true
-          deploy-message: "Aggregate ${{ github.sha }}"
-          enable-pull-request-comment: false
-          enable-commit-comment: false
-          enable-github-deployment: false
+        if: ${{ steps.detect.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' }}
+        run: >-
+          npx --yes netlify-cli@26 deploy
+          --prod
+          --dir=dist
+          --message="Aggregate ${{ github.sha }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         timeout-minutes: 5
+
+      # Persist the fingerprint only after a clean deploy. If deploy fails this
+      # step is skipped, so the next run still sees "changed" and retries.
+      - name: Save deploy fingerprint
+        uses: actions/cache/save@v4
+        with:
+          path: .deploy-fingerprint
+          key: deploy-fingerprint-${{ github.run_id }}
