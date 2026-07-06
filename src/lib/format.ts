@@ -42,3 +42,40 @@ export function groupByCategory<T extends { data: { category: string } }>(items:
   }
   return new Map([...map.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
+
+const FALLBACK_COLLECTION = '其他';
+
+/**
+ * Two-level grouping: category → collection → items.
+ * Projects without a `collection` land in a fallback bucket so the layout
+ * stays uniform (no mixed single-level / two-level rendering).
+ */
+export function groupByCategoryThenCollection<
+  T extends { data: { category: string; collection?: string } },
+>(items: T[]): Map<string, Map<string, T[]>> {
+  const outer = new Map<string, Map<string, T[]>>();
+  for (const item of items) {
+    const cat = item.data.category || 'Other';
+    const col = item.data.collection || FALLBACK_COLLECTION;
+    if (!outer.has(cat)) outer.set(cat, new Map());
+    const inner = outer.get(cat)!;
+    if (!inner.has(col)) inner.set(col, []);
+    inner.get(col)!.push(item);
+  }
+  return new Map(
+    [...outer.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([cat, inner]) => [cat, new Map([...inner.entries()].sort(([a], [b]) => a.localeCompare(b)))] as [string, Map<string, T[]>]),
+  );
+}
+
+export function uniqueCollections<
+  T extends { data: { collection?: string } },
+>(items: T[]): Set<string> {
+  const set = new Set<string>();
+  for (const item of items) {
+    const c = item.data.collection;
+    if (c) set.add(c);
+  }
+  return set;
+}

@@ -15,6 +15,8 @@ const projects = defineCollection({
       .transform((v) => (typeof v === 'string' ? v : v.toISOString().slice(0, 10)))
       .optional(),
     cover: z.string().optional(),
+    logo: z.string().optional(),
+    collection: z.string().optional(),
     demo: z.string().optional(),
     links: z.record(z.string(), z.string()).optional(),
     host: z.string().default('github'),
