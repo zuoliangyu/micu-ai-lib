@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { relativeTime } from '../lib/format';
+import { relativeTime, uniqueCollections } from '../lib/format';
 
 interface Props {
   projects: CollectionEntry<'projects'>[];
@@ -8,6 +8,7 @@ interface Props {
 const { projects } = Astro.props;
 
 const categories = new Set(projects.map((p) => p.data.category).filter(Boolean));
+const collections = uniqueCollections(projects);
 const latest = projects
   .map((p) => p.data.last_commit || '')
   .filter(Boolean)
@@ -23,6 +24,7 @@ const latestHuman = latest ? relativeTime(latest) : '—';
   <div class="hero-stats">
     <div class="hero-stat"><span class="num">{projects.length}</span><span class="label">项目</span></div>
     <div class="hero-stat"><span class="num">{categories.size}</span><span class="label">分类</span></div>
+    <div class="hero-stat"><span class="num">{collections.size || '—'}</span><span class="label">收藏夹</span></div>
     <div class="hero-stat"><span class="num">{latestHuman}</span><span class="label">最近更新</span></div>
   </div>
 </section>

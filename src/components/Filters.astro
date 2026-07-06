@@ -39,9 +39,10 @@ const tags = [...tagSet].sort((a, b) => a.localeCompare(b, 'zh'));
   const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('.tag-chip'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[data-search]'));
 
-  // group items by their nearest [data-filter-section] ancestor (for the
-  // list view's per-category sections — hide a section when all its items
-  // are filtered out)
+  // Two-level grouping: each item's closest [data-filter-section] is its
+  // *collection* section; that section's closest [data-filter-section] ancestor
+  // is its *category* shelf. An item lives in a leaf section; a shelf is a
+  // section too (so a single-element page still hides cleanly when empty).
   const sectionMap = new Map<HTMLElement, Section>();
   for (const item of items) {
     const sec = item.closest<HTMLElement>('[data-filter-section]');
@@ -66,11 +67,37 @@ const tags = [...tagSet].sort((a, b) => a.localeCompare(b, 'zh'));
       item.hidden = !visible;
       if (visible) shown += 1;
     }
+    // Hide a leaf section when none of its own items are visible. Shelves
+    // (outer sections) are also sections in sectionMap — but a shelf only
+    // has items in it directly on list/card pages where items are NOT direct
+    // children of the shelf, so its sectionMap entry is empty and stays
+    // visible; instead hide a shelf when no visible leaf section remains
+    // under it.
+    const shelves = new Set<HTMLElement>();
+    for (const sec of sectionMap.keys()) {
+      const parent = sec.parentElement?.closest<HTMLElement>('[data-filter-section]');
+      if (parent) shelves.add(parent);
+    }
     for (const { el, items: secItems } of sectionMap.values()) {
+      // Only leaf sections (those that actually own items) get hidden here.
+      if (secItems.length === 0) continue;
       el.hidden = !secItems.some((i) => !i.hidden);
+    }
+    for (const shelf of shelves) {
+      const anyVisibleLeaf = [...sectionMap.keys()].some(
+        (sec) =>
+          !sec.hidden &&
+          secItemsOf(sec).length > 0 &&
+          sec.parentElement?.closest<HTMLElement>('[data-filter-section]') === shelf,
+      );
+      shelf.hidden = !anyVisibleLeaf;
     }
     if (empty) empty.hidden = shown > 0;
     if (clearBtn) clearBtn.hidden = q === '' && activeTags.size === 0;
+  }
+
+  function secItemsOf(sec: HTMLElement): HTMLElement[] {
+    return sectionMap.get(sec)?.items ?? [];
   }
 
   search?.addEventListener('input', apply);

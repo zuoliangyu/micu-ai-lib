@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import PageToc from '../../components/PageToc.astro';
 import { STATUS_LABEL, HOST_LABEL, relativeTime } from '../../lib/format';
+import { projectLogo } from '../../lib/logo';
 
 export async function getStaticPaths() {
   const projects = await getCollection('projects');
@@ -19,15 +20,21 @@ const status = p.status;
 const statusLabel = status ? STATUS_LABEL[status] ?? status : '';
 const activity = relativeTime(p.last_commit) || '—';
 const hasToc = headings.some((h) => h.depth >= 2 && h.depth <= 4);
+const logoMarkup = projectLogo({ name: p.name, logo: p.logo }, 56);
 ---
 
 <Base view="project" activeSlug={p.slug} title={`${p.name} · MICU AI 开放社区`}>
   <div class={hasToc ? 'toc-layout' : ''}>
     <article>
-    <h1 style="font-family: Fraunces, 'Noto Serif SC', serif; font-size: 36px; margin: 0 0 12px;">
-      {p.name}
-    </h1>
-    {p.summary && <p style="font-size: 16px; color: var(--ink-mute); max-width: 70ch; margin: 0 0 24px;">{p.summary}</p>}
+    <div class="project-head">
+      <span class="project-logo" aria-hidden="true" set:html={logoMarkup} />
+      <div>
+        <h1 style="font-family: Fraunces, 'Noto Serif SC', serif; font-size: 36px; margin: 0 0 12px;">
+          {p.name}
+        </h1>
+        {p.summary && <p style="font-size: 16px; color: var(--ink-mute); max-width: 70ch; margin: 0;">{p.summary}</p>}
+      </div>
+    </div>
 
     <div class="project-meta">
       <div class="field">
@@ -50,6 +57,14 @@ const hasToc = headings.some((h) => h.depth >= 2 && h.depth <= 4);
           <span class="badge badge-category">{p.category}</span>
         </span>
       </div>
+      {p.collection && (
+        <div class="field">
+          <span class="field-label">Collection</span>
+          <span class="field-value">
+            <span class="badge badge-collection">{p.collection}</span>
+          </span>
+        </div>
+      )}
       <div class="field">
         <span class="field-label">Status</span>
         <span class="field-value">

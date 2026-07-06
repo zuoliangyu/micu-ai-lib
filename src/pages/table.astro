@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import Filters from '../components/Filters.astro';
 import { HOST_LABEL, relativeTime } from '../lib/format';
+import { projectLogo } from '../lib/logo';
 
 const projects = await getCollection('projects');
 projects.sort((a, b) => {
@@ -17,6 +18,7 @@ function searchText(p: typeof projects[number]): string {
     p.data.name,
     p.data.summary,
     p.data.category,
+    p.data.collection ?? '',
     (p.data.authors || []).join(' '),
     (p.data.tags || []).join(' '),
   ]
@@ -34,6 +36,7 @@ function searchText(p: typeof projects[number]): string {
         <tr>
           <th>名称</th>
           <th>分类</th>
+          <th>收藏夹</th>
           <th>来源</th>
           <th>作者</th>
           <th>状态</th>
@@ -48,8 +51,12 @@ function searchText(p: typeof projects[number]): string {
             const tagAttr = (p.data.tags || []).map((t) => t.toLowerCase()).join(',');
             return (
               <tr data-search={searchText(p)} data-tags={tagAttr}>
-                <td><a href={`/projects/${p.data.slug}`}>{p.data.name}</a></td>
+                <td>
+                  <span class="table-logo" aria-hidden="true" set:html={projectLogo({ name: p.data.name, logo: p.data.logo }, 18)} />
+                  <a href={`/projects/${p.data.slug}`}>{p.data.name}</a>
+                </td>
                 <td>{p.data.category}</td>
+                <td>{p.data.collection ?? '—'}</td>
                 <td>{HOST_LABEL[p.data.host] ?? p.data.host}</td>
                 <td>{(p.data.authors || []).join(', ')}</td>
                 <td>{p.data.status ?? ''}</td>

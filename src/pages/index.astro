@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import Filters from '../components/Filters.astro';
 import ProjectCard from '../components/ProjectCard.astro';
+import { groupByCategoryThenCollection } from '../lib/format';
 
 const projects = await getCollection('projects');
 projects.sort((a, b) => {
@@ -11,13 +12,30 @@ projects.sort((a, b) => {
   const bx = b.data.last_commit || b.data.updated || '';
   return bx.localeCompare(ax);
 });
+const grouped = groupByCategoryThenCollection(projects);
 ---
 
 <Base view="cards" title="MICU AI 开放社区 · 项目矩阵">
   <Hero projects={projects} />
   <Filters />
 
-  <section class="card-grid">
-    {projects.map((p) => <ProjectCard project={p} />)}
-  </section>
+  <div class="card-shelves">
+    {
+      [...grouped.entries()].map(([cat, collections]) => (
+        <section class="shelf" data-filter-section data-shelf-cat={cat}>
+          <h2 class="shelf-head">{cat}</h2>
+          <div class="shelf-body">
+            {[...collections.entries()].map(([col, items]) => (
+              <section class="collection-section" data-filter-section data-shelf-col={col}>
+                <h3 class="collection-head">{col}</h3>
+                <div class="card-grid">
+                  {items.map((p) => <ProjectCard project={p} />)}
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
+      ))
+    }
+  </div>
 </Base>
