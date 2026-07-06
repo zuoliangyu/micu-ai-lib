@@ -606,6 +606,27 @@ main.content {
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
+.card-logo {
+  position: absolute;
+  top: 130px;              /* sits flush on the cover/body seam */
+  left: 16px;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--paper-soft);
+  background: var(--paper-soft);
+  box-shadow: 0 2px 8px -2px rgba(13,34,64,0.2);
+  z-index: 1;
+}
+.card-logo :global(svg),
+.card-logo :global(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
 .card-body {
   padding: 14px 16px 16px;
   display: flex;
@@ -613,8 +634,10 @@ main.content {
   gap: 9px;
   flex: 1;
 }
+/* nudge the eyebrow row right of the floating logo on the first line */
 .card-eyebrow {
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding-left: 32px;
 }
 .card-title {
   font-family: "Fraunces", "Noto Serif SC", serif;
@@ -682,6 +705,127 @@ main.content {
   color: var(--accent);
   border-color: rgba(30,136,229,0.25);
 }
+.badge-collection {
+  background: rgba(137,87,229,0.12);
+  color: #6E40C9;
+  border-color: rgba(137,87,229,0.3);
+}
+:root[data-theme="dark"] .badge-collection { color: #C4B5FD; }
+
+/* ============================================================
+   COLLECTION SHELVES & LOGOS
+   ============================================================ */
+
+.card-shelves {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin: 24px 0;
+}
+.shelf {
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 18px;
+}
+.shelf:first-child { border-top: none; padding-top: 0; }
+.shelf-head {
+  font-family: "Fraunces", "Noto Serif SC", serif;
+  font-variation-settings: "opsz" 144, "SOFT" 30;
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+.shelf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.collection-section {
+  border-left: 2px solid var(--rule-hair);
+  padding-left: 14px;
+}
+.collection-head {
+  font-family: "Fraunces", "Noto Serif SC", serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collection-head::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+}
+/* list view: smaller collection heads */
+.prose .collection-head {
+  font-size: 14px;
+  margin-top: 14px;
+}
+
+/* small inline logos — list rows, table cells, sidebar */
+.list-logo,
+.table-logo,
+.sidebar-logo {
+  display: inline-flex;
+  vertical-align: middle;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.list-logo { margin-right: 8px; }
+.table-logo { margin-right: 8px; }
+.sidebar-logo { margin-right: 8px; }
+.list-logo :global(svg),
+.list-logo :global(img),
+.table-logo :global(svg),
+.table-logo :global(img),
+.sidebar-logo :global(svg),
+.sidebar-logo :global(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* detail page big logo */
+.project-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 24px;
+}
+.project-logo {
+  display: inline-flex;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--rule-hair);
+}
+.project-logo :global(svg),
+.project-logo :global(img) {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* sidebar nav row: logo + name — overlay flex on the existing .nav a block */
+.nav a {
+  display: flex !important;
+  align-items: center;
+}
+.nav-name { flex: 1; }
 
 .tag {
   display: inline-flex;
