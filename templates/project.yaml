@@ -16,3 +16,9 @@ readme: README.md            # 可选，详情页拉哪个文件，默认 README
 links:                       # 可选
   paper: https://...
   video: https://...
+
+subskills:                   # 可选，仓库内分立的子技能/子模块
+  - name: sub-skill-name
+    status: stable            # experimental / stable / deprecated
+    path: subskills/sub-skill-name   # 可选，仓库内相对路径
+    summary: 一句话说明这个子技能干什么

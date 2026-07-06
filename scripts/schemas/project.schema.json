@@ -17,6 +17,20 @@
     "links":    {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "subskills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "summary"],
+        "properties": {
+          "name":    { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
+          "path":    { "type": "string" },
+          "status":  { "type": "string", "enum": ["experimental", "stable", "deprecated"] }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false
