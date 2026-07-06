@@ -292,6 +292,9 @@ def load_remote_project(entry: str, validator: Draft202012Validator) -> dict | N
     cover = meta.get("cover")
     if cover and not cover.startswith(("http://", "https://")):
         meta["cover"] = cover_url(host, repo, cover)
+    logo = meta.get("logo")
+    if logo and not logo.startswith(("http://", "https://")):
+        meta["logo"] = cover_url(host, repo, logo)
     return meta
 
 
@@ -320,6 +323,9 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
         readme_path.read_text(encoding="utf-8") if readme_path.is_file() else ""
     )
     meta["last_commit"] = local_activity(root)
+    # local logo: keep absolute URLs as-is; bare relative paths won't resolve
+    # on the deployed site, so leave them for the generator to fall back to
+    # an auto-generated SVG (no raw-URL rewriting for local host).
     return meta
 
 
@@ -328,7 +334,7 @@ def load_local_project(path: str, validator: Draft202012Validator) -> dict | Non
 
 FRONTMATTER_KEYS = (
     "name", "summary", "authors", "category", "tags", "status",
-    "updated", "cover", "demo", "links",
+    "updated", "cover", "logo", "demo", "collection", "links",
     "host", "repo", "slug", "web_url", "last_commit",
 )
 

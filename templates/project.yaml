@@ -9,7 +9,9 @@ status: in-progress          # in-progress / done / archived
 updated: 2026-05-19          # YYYY-MM-DD
 summary: 一句话简介，列表页就显示这个   # 必填
 
-cover: assets/cover.png      # 可选，相对仓库路径或完整 URL
+cover: assets/cover.png      # 可选，横幅配图，相对仓库路径或完整 URL
+logo: assets/logo.png        # 可选，方形 logo，相对仓库路径或完整 URL；不填则按项目名生成首字母色块
+collection: 收藏夹名          # 可选，二级切片分组（Steam 收藏夹语义），同 category 下再按此分桶
 demo: https://...            # 可选
 readme: README.md            # 可选，详情页拉哪个文件，默认 README.md
 

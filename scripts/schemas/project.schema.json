@@ -12,8 +12,10 @@
     "status":   { "type": "string", "enum": ["in-progress", "done", "archived"] },
     "updated":  { "type": "string" },
     "cover":    { "type": "string" },
+    "logo":     { "type": "string", "minLength": 1 },
     "demo":     { "type": "string" },
     "readme":   { "type": "string" },
+    "collection": { "type": "string", "minLength": 1 },
     "links":    {
       "type": "object",
       "additionalProperties": { "type": "string" }
