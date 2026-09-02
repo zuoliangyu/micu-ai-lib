@@ -21,6 +21,6 @@ links:                       # 可选
 
 subskills:                   # 可选，仓库内分立的子技能/子模块
   - name: sub-skill-name
-    status: stable            # experimental / stable / deprecated
+    status: stable            # experimental / pilot / stable / deprecated
     path: subskills/sub-skill-name   # 可选，仓库内相对路径
     summary: 一句话说明这个子技能干什么
