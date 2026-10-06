@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="public/assets/logo-full.png" alt="米醋电子工作室 MCU Electronics Studio" width="600" />
+</p>
+
+<p align="center">
+  <strong>米醋嵌入式AI+</strong><br />
+  不为嵌入式AI赚钱，以培养新一代嵌入式AI工程师为己任
+</p>
+
 # MICU AI 资源库
 
 MICU 工作室 AI 项目聚合站点。成员仓库提交 `project.yaml`，主仓库定时拉取并由 Astro 渲染为静态站点。

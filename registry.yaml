@@ -5,7 +5,6 @@ repos:
   - 750cool/kaoyan-king
   - Blake-YH/BOSS-Tools
   - DunCanYounG-1/auto-embedded
-  - EmbeddedKitOrg/EK-OmniProbe
   - KoneFly/ai-dev-toolkit
   - XiaoSongTongXue0505/frontend-automation-workflow
   - fishcold789/Taffy-Codex-Theme-Studio
@@ -16,6 +15,7 @@ repos:
   - wddpbest/maixcam-master-skill
   - wzyn20051216/solidworks-automation-skill
   - zuoliangyu/LaTeX-Thesis-Writing
+  - zuoliangyu/MICU-OmniProbe
   - zuoliangyu/multisim-spice
   - zuoliangyu/ti-toolbox
   - zwisgod/Web2BlueBuilder
