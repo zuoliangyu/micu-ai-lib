@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import BrandBlock from '../components/BrandBlock.astro';
 import Sidebar from '../components/Sidebar.astro';
+import { withBase } from '../lib/format';
 
 interface Props {
   title?: string;
@@ -17,7 +18,7 @@ const { title = 'MICU AI 开放社区 · 工作室项目矩阵', view = 'cards',
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{title}</title>
-  <link rel="icon" type="image/png" href="/assets/logo.png" />
+  <link rel="icon" type="image/png" href={withBase('/assets/logo.png')} />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -54,7 +55,7 @@ const { title = 'MICU AI 开放社区 · 工作室项目矩阵', view = 'cards',
 
     <main class="content">
       <header class="site-banner">
-        <img src="/assets/logo-full.png" alt="米醋电子工作室 MCU Electronics Studio" />
+        <img src={withBase('/assets/logo-full.png')} alt="米醋电子工作室 MCU Electronics Studio" />
         <p>
           <strong>米醋嵌入式AI+</strong><br />
           不为嵌入式AI赚钱，以培养新一代嵌入式AI工程师为己任

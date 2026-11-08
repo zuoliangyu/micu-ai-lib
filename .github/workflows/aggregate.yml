@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      deploy: ${{ steps.detect.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -101,6 +103,20 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         timeout-minutes: 5
 
+      # Second build for GitHub Pages, served under /micu-ai-lib/.
+      - name: Build site for GitHub Pages
+        if: ${{ steps.detect.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' }}
+        run: npx astro build --outDir dist-pages
+        env:
+          SITE_URL: https://zuoliangyu.github.io
+          BASE_PATH: /micu-ai-lib
+
+      - name: Upload Pages artifact
+        if: ${{ steps.detect.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist-pages
+
       # Persist the fingerprint only after a clean deploy. If deploy fails this
       # step is skipped, so the next run still sees "changed" and retries.
       - name: Save deploy fingerprint
@@ -108,3 +124,17 @@ jobs:
         with:
           path: .deploy-fingerprint
           key: deploy-fingerprint-${{ github.run_id }}
+
+  pages:
+    needs: build
+    if: ${{ needs.build.outputs.deploy == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

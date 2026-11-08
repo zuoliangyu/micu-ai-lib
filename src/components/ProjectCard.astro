@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { STATUS_LABEL, HOST_LABEL, relativeTime, activityClass } from '../lib/format';
+import { STATUS_LABEL, HOST_LABEL, relativeTime, activityClass, withBase } from '../lib/format';
 import { projectLogo } from '../lib/logo';
 
 interface Props {
@@ -27,7 +27,7 @@ const searchText = [
 const tagAttr = (p.tags || []).map((t) => t.toLowerCase()).join(',');
 ---
 
-<a class="card" href={`/projects/${p.slug}`} data-search={searchText} data-tags={tagAttr}>
+<a class="card" href={withBase(`/projects/${p.slug}`)} data-search={searchText} data-tags={tagAttr}>
   {p.cover ? (
     <div class="card-cover" style={`background-image:url(${p.cover})`}></div>
   ) : (

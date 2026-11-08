@@ -3,7 +3,7 @@ import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import Filters from '../components/Filters.astro';
-import { HOST_LABEL, relativeTime } from '../lib/format';
+import { HOST_LABEL, relativeTime, withBase } from '../lib/format';
 import { projectLogo } from '../lib/logo';
 
 const projects = await getCollection('projects');
@@ -53,7 +53,7 @@ function searchText(p: typeof projects[number]): string {
               <tr data-search={searchText(p)} data-tags={tagAttr}>
                 <td>
                   <span class="table-logo" aria-hidden="true" set:html={projectLogo({ name: p.data.name, logo: p.data.logo }, 18)} />
-                  <a href={`/projects/${p.data.slug}`}>{p.data.name}</a>
+                  <a href={withBase(`/projects/${p.data.slug}`)}>{p.data.name}</a>
                 </td>
                 <td>{p.data.category}</td>
                 <td>{p.data.collection ?? '—'}</td>

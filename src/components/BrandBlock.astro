@@ -1,5 +1,6 @@
 ---
 import ViewSwitcher from './ViewSwitcher.astro';
+import { withBase } from '../lib/format';
 
 interface Props {
   view?: 'cards' | 'list' | 'table' | 'project';
@@ -8,8 +9,8 @@ const { view = 'cards' } = Astro.props;
 ---
 
 <aside class="brand-block">
-  <a class="brand-logo" href="/" aria-label="首页">
-    <img src="/assets/logo.png" alt="MICU" />
+  <a class="brand-logo" href={withBase('/')} aria-label="首页">
+    <img src={withBase('/assets/logo.png')} alt="MICU" />
   </a>
   <div class="brand-title">MICU<em>AI 开放社区</em></div>
   <div class="brand-tagline">studio · projects · community</div>
@@ -23,5 +24,5 @@ const { view = 'cards' } = Astro.props;
     </a>
   </div>
   <ViewSwitcher view={view} />
-  <a class="home-link" href="/">← 返回主页</a>
+  <a class="home-link" href={withBase('/')}>← 返回主页</a>
 </aside>

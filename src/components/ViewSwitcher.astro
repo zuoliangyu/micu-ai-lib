@@ -1,4 +1,5 @@
 ---
+import { withBase } from '../lib/format';
 interface Props {
   view: 'cards' | 'list' | 'table' | 'project';
 }
@@ -7,7 +8,7 @@ const cls = (v: string) => `viewbtn${view === v ? ' is-active' : ''}`;
 ---
 
 <nav class="brand-views" aria-label="视图切换">
-  <a class={cls('cards')} href="/">卡片</a>
-  <a class={cls('list')}  href="/list">列表</a>
-  <a class={cls('table')} href="/table">表格</a>
+  <a class={cls('cards')} href={withBase('/')}>卡片</a>
+  <a class={cls('list')}  href={withBase('/list')}>列表</a>
+  <a class={cls('table')} href={withBase('/table')}>表格</a>
 </nav>

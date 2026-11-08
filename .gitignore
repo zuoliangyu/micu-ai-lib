@@ -4,6 +4,7 @@ src/content/projects/
 # Astro build artifacts
 node_modules/
 dist/
+dist-pages/
 .astro/
 
 __pycache__/

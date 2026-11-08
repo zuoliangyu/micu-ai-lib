@@ -1,6 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
-import { groupByCategory } from '../lib/format';
+import { groupByCategory, withBase } from '../lib/format';
 import { projectLogo } from '../lib/logo';
 
 interface Props {
@@ -30,7 +30,7 @@ const grouped = groupByCategory(projects);
           {items.map((p) => (
             <li>
               <a
-                href={`/projects/${p.data.slug}`}
+                href={withBase(`/projects/${p.data.slug}`)}
                 class={p.data.slug === activeSlug ? 'is-active' : ''}
               >
                 <span class="sidebar-logo" aria-hidden="true" set:html={projectLogo({ name: p.data.name, logo: p.data.logo }, 16)} />
